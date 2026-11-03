@@ -58,7 +58,7 @@ object Notifs {
         NotificationCompat.Builder(ctx, CH_WAIT)
             .setSmallIcon(R.drawable.ic_notif)
             .setColor(accent())
-            .setContentTitle("Отбой")
+            .setContentTitle("bylarik")
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

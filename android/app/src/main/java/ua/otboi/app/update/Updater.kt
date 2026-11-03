@@ -41,7 +41,7 @@ object Updater {
     private val BASE = "https://github.com/$REPO/releases/download/android-latest/"
     private val VERSION_URL = BASE + "version.json"
     private val APK_URL = BASE + "Otboi.apk"
-    private const val CHECK_EVERY_MS = 6L * 60 * 60 * 1000
+    private const val CHECK_EVERY_MS = 60L * 60 * 1000
     const val ACTION_STATUS = "ua.otboi.app.update.STATUS"
 
     sealed class State {
@@ -106,6 +106,26 @@ object Updater {
             if (info.versionCode > currentVersionCode(ctx)) Store.addLog("Доступно обновление ${info.versionName}")
         }.onFailure {
             state.value = State.Failed("Не удалось проверить обновления: ${it.message}")
+        }
+    }
+
+    /**
+     * Фоновая проверка (после срабатывания будильника, когда телефон уже в сети):
+     * если есть новая версия — одно уведомление на каждую версию.
+     */
+    suspend fun checkAndNotify(ctx: Context) {
+        try {
+            check(ctx)
+            val st = state.value as? State.Available ?: return
+            val p = prefs(ctx)
+            if (p.getLong("notifiedCode", 0L) >= st.info.versionCode) return
+            p.edit().putLong("notifiedCode", st.info.versionCode).apply()
+            ua.otboi.app.alarm.Notifs.info(
+                ctx,
+                "Доступно обновление bylarik ${st.info.versionName}",
+                "Открой приложение и нажми «Обновить» — будильники и настройки сохранятся.",
+            )
+        } catch (_: Exception) {
         }
     }
 
@@ -286,7 +306,7 @@ class UpdateReceiver : BroadcastReceiver() {
                 val hint = if (status == PackageInstaller.STATUS_FAILURE_CONFLICT ||
                     status == PackageInstaller.STATUS_FAILURE_INCOMPATIBLE
                 ) {
-                    " — эта версия подписана другим ключом: удали «Отбой» и поставь новую версию вручную"
+                    " — эта версия подписана другим ключом: удали «bylarik» и поставь новую версию вручную"
                 } else {
                     ""
                 }

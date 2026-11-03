@@ -117,14 +117,16 @@ jobs:
           VC=$(grep -oP 'versionCode = \K\d+' app/build.gradle.kts)
           VN=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           SHA=$(sha256sum Otboi.apk | cut -d' ' -f1)
-          NOTES=$(git log -1 --format=%s | sed -E 's/^Android //')
+          NOTES=$(git log -1 --format=%s | sed -E 's/^(Android|bylarik) //')
           jq -n --argjson vc "$VC" --arg vn "$VN" --arg sha "$SHA" --arg notes "$NOTES" \
             '{versionCode: $vc, versionName: $vn, sha256: $sha, notes: $notes}' > version.json
           cat version.json
           gh release delete android-latest --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
-          gh release create android-latest Otboi.apk version.json -R "$GITHUB_REPOSITORY" \
-            --title "Отбой для Android" \
-            --notes "Сборка из коммита ${GITHUB_SHA::7}. Скачай Otboi.apk на телефон и установи." \
+          # Otboi.apk — для автообновления уже установленных версий, bylarik.apk — для людей.
+          cp Otboi.apk bylarik.apk
+          gh release create android-latest bylarik.apk Otboi.apk version.json -R "$GITHUB_REPOSITORY" \
+            --title "bylarik для Android" \
+            --notes "Сборка из коммита ${GITHUB_SHA::7}. Скачай bylarik.apk на телефон и установи. Уже установленное приложение обновится само." \
             --target "$GITHUB_SHA" --latest=false
 
       - name: Выложить лог сборки (если что-то пошло не так)

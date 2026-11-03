@@ -54,7 +54,7 @@ fun UpdateCard(state: Updater.State, compact: Boolean) {
             is Updater.State.Installing -> Txt("Открываю установщик Android…", 13.sp, C.Text2)
             is Updater.State.NeedsPermission -> {
                 Txt(
-                    "Разреши «Отбою» устанавливать приложения (откроются настройки), потом вернись и нажми ещё раз.",
+                    "Разреши «bylarik» устанавливать приложения (откроются настройки), потом вернись и нажми ещё раз.",
                     13.sp, C.Text2, lineHeight = 18.sp,
                 )
                 Spacer(Modifier.height(10.dp))
@@ -84,7 +84,7 @@ fun VersionSection() {
     val state by Updater.state.collectAsState()
     val name = remember { Updater.currentVersionName(ctx) }
     SectionLabel("ВЕРСИЯ", Modifier.padding(top = 10.dp))
-    Txt("Отбой $name", 15.sp, C.Text, FontWeight.SemiBold)
+    Txt("bylarik $name", 15.sp, C.Text, FontWeight.SemiBold)
     val status = when (val s = state) {
         is Updater.State.Checking -> "Проверяю…"
         is Updater.State.UpToDate -> "Это последняя версия"

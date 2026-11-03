@@ -1,4 +1,4 @@
-# Отбой
+# bylarik
 
 Будильник для Android, который ждёт отбоя воздушной тревоги.
 
@@ -10,6 +10,6 @@
 - **Дизайн** — чёрный с фиолетовым, три стиля цифр.
 - **Автообновление** — приложение само находит новую версию в релизах этого репозитория.
 
-**Скачать:** [Otboi.apk](https://github.com/1larik1/bylarik/releases/download/android-latest/Otboi.apk). Установка и разрешения описаны в [android/README.md](android/README.md).
+**Скачать:** [bylarik.apk](https://github.com/1larik1/bylarik/releases/download/android-latest/bylarik.apk). Установка и разрешения описаны в [android/README.md](android/README.md).
 
 Каждый push в `android/` запускает сборку в GitHub Actions. После неё идёт проверка на эмуляторе Android 14 с тестовым будильником при заблокированном экране. Затем выходит релиз `android-latest`, и приложение предлагает обновиться.

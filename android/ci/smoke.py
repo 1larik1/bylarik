@@ -103,9 +103,9 @@ def clear_dialogs():
         # Системное окно ANR — отдельная строка «<приложение> isn't responding» (эмулятор на английском).
         anr = [x for x in t if x.strip().endswith("isn't responding")]
         if anr:
-            if any("Отбой" in x or "Otboi" in x for x in anr):
-                problems.append("приложение «Отбой» зависло (ANR)")
-                log("!!! Отбой не отвечает: " + " | ".join(anr))
+            if any(n in x for x in anr for n in ("bylarik", "Отбой", "Otboi")):
+                problems.append("приложение зависло (ANR)")
+                log("!!! приложение не отвечает: " + " | ".join(anr))
             p = find("Wait", exact=True) or find("Подождать", exact=True) or find("Close app", exact=True)
             if not p:
                 return
@@ -114,8 +114,8 @@ def clear_dialogs():
             time.sleep(3)
         elif "keeps stopping" in joined or "has stopped" in joined:
             log("системное окно об ошибке: " + joined[:120])
-            if "Отбой" in joined:
-                problems.append("приложение «Отбой» остановилось")
+            if any(n in joined for n in ("bylarik", "Отбой", "Otboi")):
+                problems.append("приложение остановилось")
             p = find("Close app", exact=True) or find("OK", exact=True)
             if p:
                 shell(f"input tap {p[0]} {p[1]}")

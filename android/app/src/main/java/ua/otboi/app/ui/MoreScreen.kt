@@ -89,7 +89,7 @@ fun MoreScreen() {
             }
         }
         Txt(
-            "На Xiaomi, Samsung, Huawei и Honor ещё включи «Автозапуск» и сними ограничения фоновой работы для «Отбоя» в настройках приложения.",
+            "На Xiaomi, Samsung, Huawei и Honor ещё включи «Автозапуск» и сними ограничения фоновой работы для «bylarik» в настройках приложения.",
             12.sp, C.Text3, lineHeight = 16.sp,
         )
         OutlineButton("Открыть настройки приложения", height = 46.dp) { Perms.open(ctx, "app") }
@@ -216,7 +216,7 @@ fun MoreScreen() {
             runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""
         }
         Txt(
-            "Отбой $version · будить или нет — решают официальные данные о тревоге (siren.pp.ua). Telegram — только для информации.",
+            "bylarik $version · будить или нет — решают официальные данные о тревоге (siren.pp.ua). Telegram — только для информации.",
             12.sp, C.Muted, lineHeight = 16.sp,
         )
     }

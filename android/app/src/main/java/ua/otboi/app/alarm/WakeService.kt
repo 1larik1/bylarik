@@ -168,6 +168,14 @@ class WakeService : Service() {
             return
         }
 
+        if (!test) {
+            val app = applicationContext
+            ua.otboi.app.OtboiApp.scope.launch {
+                delay(120_000L)
+                ua.otboi.app.update.Updater.checkAndNotify(app)
+            }
+        }
+
         mode = Mode.CHECKING
         acquireWake(10 * 60_000L)
         goForeground(ID_WORK, Notifs.working(this, "Будильник $label: проверяю тревогу…"))
