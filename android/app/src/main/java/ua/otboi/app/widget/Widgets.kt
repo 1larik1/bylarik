@@ -15,6 +15,7 @@ import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.StrikethroughSpan
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import kotlinx.coroutines.launch
@@ -114,10 +115,22 @@ object Widgets {
     }
 
     fun render(ctx: Context, manager: AppWidgetManager, ids: IntArray) {
-        try {
-            manager.updateAppWidget(ids, build(ctx.applicationContext))
-        } catch (_: Exception) {
+        for (id in ids) {
+            try {
+                manager.updateAppWidget(id, build(ctx.applicationContext, clockSize(manager.getAppWidgetOptions(id))))
+            } catch (_: Exception) {
+            }
         }
+    }
+
+    /**
+     * Размер цифр под высоту виджета: в низком — поменьше, чтобы влезла строка с будильником,
+     * в высоком — крупнее, чтобы не было пустоты. Высота в портретной ориентации — MAX_HEIGHT.
+     */
+    private fun clockSize(options: Bundle?): Float {
+        val h = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0) ?: 0
+        if (h <= 0) return 46f
+        return ((h - 76) / 1.2f).coerceIn(34f, 80f)
     }
 
     /** Проверить тревогу и перерисовать. force — по нажатию; иначе плановая (пропускаем, если данные свежие). */
@@ -210,7 +223,7 @@ object Widgets {
         }
     }
 
-    private fun build(ctx: Context): RemoteViews {
+    private fun build(ctx: Context, clockDp: Float): RemoteViews {
         val s = Store.settings.value
         val p = Palettes.byId(s.themeId)
         val now = System.currentTimeMillis()
@@ -218,6 +231,7 @@ object Widgets {
 
         v.setInt(R.id.w_root, "setBackgroundResource", background(p))
         v.setTextColor(R.id.w_clock, p.hero.argb())
+        v.setTextViewTextSize(R.id.w_clock, TypedValue.COMPLEX_UNIT_DIP, clockDp)
         v.setTextColor(R.id.w_date, p.text2.argb())
         val datePattern = "EEEE, " + T.dayMonthPattern
         v.setCharSequence(R.id.w_date, "setFormat12Hour", datePattern)
