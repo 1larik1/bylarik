@@ -1,0 +1,173 @@
+name: Собрать Android (APK)
+
+on:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/build-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: Скачать код
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      # Без секретов APK подписывается сборочным ключом, который создаётся один раз и хранится
+      # в кеше Actions — так обновления ставятся поверх старой версии
+      # (кеш живёт, пока сборки идут хотя бы раз в неделю).
+      - name: Сборочный ключ между сборками
+        uses: actions/cache@v4
+        with:
+          path: ~/otboi-ci-key
+          key: otboi-ci-key-v1
+
+      - name: Проверки логики (без сети)
+        run: gradle --no-daemon testReleaseUnitTest --tests 'ua.otboi.app.LogicTest' --stacktrace
+
+      - name: Живая проверка API тревог и Telegram
+        continue-on-error: true
+        run: gradle --no-daemon testReleaseUnitTest --tests 'ua.otboi.app.LiveApiTest' 2>&1 | grep -E "LIVE|FAIL|BUILD" || true
+
+      - name: Ключ подписи
+        env:
+          KS_B64: ${{ secrets.OTBOI_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.OTBOI_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/otboi.jks"
+            echo "OTBOI_KEYSTORE=$RUNNER_TEMP/otboi.jks" >> "$GITHUB_ENV"
+            echo "OTBOI_KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+            echo "Подписываю ключом из секретов"
+          else
+            KS="$HOME/otboi-ci-key/otboi-ci.jks"
+            if [ -f "$KS" ]; then
+              echo "Сборочный ключ взят из кеша — обновление встанет поверх"
+            else
+              mkdir -p "$(dirname "$KS")"
+              keytool -genkeypair -keystore "$KS" -storetype PKCS12 -alias otboi \
+                -keyalg RSA -keysize 2048 -validity 36500 \
+                -storepass android -keypass android -dname "CN=Otboi CI, O=Otboi, C=UA"
+              echo "::warning::Создан новый сборочный ключ — эту версию нужно ставить начисто"
+            fi
+            echo "OTBOI_KEYSTORE=$KS" >> "$GITHUB_ENV"
+            echo "OTBOI_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+          fi
+
+      - name: Собрать APK
+        run: |
+          set -o pipefail
+          gradle --no-daemon assembleRelease --stacktrace 2>&1 | tee build.log
+          cp app/build/outputs/apk/release/app-release.apk Otboi.apk
+          ls -la Otboi.apk
+
+      - name: Проверить APK (подпись и класс приложения)
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" verify --print-certs Otboi.apk | tee certs.txt
+          grep -q "CN=Otboi" certs.txt
+          "$BT/aapt2" dump xmltree Otboi.apk --file AndroidManifest.xml | grep -A15 "E: application" | grep -q "OtboiApp"
+          unzip -o -q Otboi.apk 'classes*.dex' -d dex
+          grep -l -a "Lua/otboi/app/OtboiApp;" dex/*.dex
+          echo "APK в порядке"
+
+      - name: Выложить APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Otboi-apk
+          path: android/Otboi.apk
+
+      - name: Опубликовать APK в Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VC=$(grep -oP 'versionCode = \K\d+' app/build.gradle.kts)
+          VN=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          SHA=$(sha256sum Otboi.apk | cut -d' ' -f1)
+          NOTES=$(git log -1 --format=%s | sed -E 's/^Android //')
+          jq -n --argjson vc "$VC" --arg vn "$VN" --arg sha "$SHA" --arg notes "$NOTES" \
+            '{versionCode: $vc, versionName: $vn, sha256: $sha, notes: $notes}' > version.json
+          cat version.json
+          gh release delete android-latest --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create android-latest Otboi.apk version.json -R "$GITHUB_REPOSITORY" \
+            --title "Отбой для Android" \
+            --notes "Сборка из коммита ${GITHUB_SHA::7}. Скачай Otboi.apk на телефон и установи." \
+            --target "$GITHUB_SHA" --latest=false
+
+      - name: Выложить лог сборки (если что-то пошло не так)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-log
+          path: android/build.log
+
+  # Проверка на эмуляторе Android 14: установка, экраны, тестовый будильник при заблокированном экране.
+  emulator:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Скачать код
+        uses: actions/checkout@v4
+
+      - name: Взять собранный APK
+        uses: actions/download-artifact@v4
+        with:
+          name: Otboi-apk
+          path: apk
+
+      - name: Включить ускорение эмулятора (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Эмулятор Android 14 — запуск и проверка
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: python3 android/ci/smoke.py apk/Otboi.apk screens
+
+      - name: Скриншоты и отчёт
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-screens
+          path: screens
+
+      - name: Скриншоты в Releases (чтобы их было удобно скачать)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d screens ] || exit 0
+          cd screens && zip -q -r ../emulator-screens.zip . && cd ..
+          gh release delete android-test --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create android-test emulator-screens.zip -R "$GITHUB_REPOSITORY" \
+            --title "Отбой — проверка на эмуляторе" \
+            --notes "Скриншоты и отчёт проверки на эмуляторе Android 14 (коммит ${GITHUB_SHA::7})." \
+            --target "$GITHUB_SHA" --latest=false --prerelease
