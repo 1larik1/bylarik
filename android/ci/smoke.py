@@ -238,7 +238,7 @@ def grant():
     shell(f"appops set {PKG} REQUEST_INSTALL_PACKAGES allow")
 
 
-def test_alarm(button, wake_label, dismiss_label, prefix):
+def test_alarm(button, wake_label, dismiss_label, prefix, main_tab, not_today):
     """Тестовый будильник при выключенном экране: звонит, или ждёт отбоя (если сейчас тревога)."""
     p = scroll_to(button)
     if not p:
@@ -269,6 +269,7 @@ def test_alarm(button, wake_label, dismiss_label, prefix):
     time.sleep(2)
     shell(f"am start -n {PKG}/.ui.MainActivity")
     time.sleep(5)
+    open_tab(main_tab)
     if "отбо" in n.lower() or "all-clear" in n.lower() or "відбо" in n.lower():
         log("сейчас тревога — будильник правильно ждёт отбоя")
         shot(f"{prefix}_zhdyot_otboya")
@@ -284,6 +285,11 @@ def test_alarm(button, wake_label, dismiss_label, prefix):
             tap(dismiss_label, exact=True, wait=3)
         else:
             problems.append("кнопка «разбудить сейчас» не включила звонок")
+            # Снимаем ожидание, чтобы не мешало дальше.
+            p3 = scroll_to(not_today)
+            if p3:
+                shell(f"input tap {p3[0]} {p3[1]}")
+                time.sleep(2)
     else:
         problems.append("тестовый будильник не сработал")
 
@@ -323,22 +329,24 @@ def check_mode():
         problems.append("нет карточки погоды")
 
     # 2. Редактор: звук.
-    tap("Пн–Пт", wait=3)
-    shot("03_ru_redaktor")
-    if scroll_to("Плавно нарастает"):
-        shot("04_ru_zvuk")
-    else:
-        problems.append("нет раздела звука в редакторе")
-    p = find("Послушать", exact=True)
-    if p:
-        shell(f"input tap {p[0]} {p[1]}")
-        time.sleep(2)
-        check("прослушивание мелодии")
-        p = find("Стоп", exact=True)
+    if tap("Пн–Пт", wait=3):
+        shot("03_ru_redaktor")
+        if scroll_to("Плавно нарастает"):
+            shot("04_ru_zvuk")
+        else:
+            problems.append("нет раздела звука в редакторе")
+        p = find("Послушать", exact=True)
         if p:
             shell(f"input tap {p[0]} {p[1]}")
-    shell("input keyevent KEYCODE_BACK")
-    time.sleep(2)
+            time.sleep(2)
+            check("прослушивание мелодии")
+            p = find("Стоп", exact=True)
+            if p:
+                shell(f"input tap {p[0]} {p[1]}")
+        shell("input keyevent KEYCODE_BACK")
+        time.sleep(2)
+    else:
+        problems.append("не открылся редактор будильника")
     check("редактор")
 
     # 3. Новости и «Ещё».
@@ -370,7 +378,7 @@ def check_mode():
 
     # 4. Тестовый будильник (русский).
     open_tab("Ещё")
-    test_alarm("Тестовый будильник через минуту", "Разбудить сейчас", "Выключить", "10_ru")
+    test_alarm("Тестовый будильник через минуту", "Разбудить сейчас", "Выключить", "10_ru", "Будильники", "Сегодня не будить")
     check("тестовый будильник")
 
     # 5. Украинский и английский: главный экран и «Ещё».
@@ -383,12 +391,14 @@ def check_mode():
     open_tab("Alarms")
     time.sleep(3)
     shot("13_en_main")
-    tap("Mon–Fri", wait=3)
-    shot("14_en_editor")
-    if scroll_to("Gentle wake-up"):
-        shot("15_en_sound")
-    shell("input keyevent KEYCODE_BACK")
-    time.sleep(2)
+    if tap("Mon–Fri", wait=3):
+        shot("14_en_editor")
+        if scroll_to("Gentle wake-up"):
+            shot("15_en_sound")
+        shell("input keyevent KEYCODE_BACK")
+        time.sleep(2)
+    else:
+        problems.append("en: не открылся редактор")
     open_tab("More")
     shot("16_en_more")
     if scroll_to("Theme"):
@@ -396,7 +406,20 @@ def check_mode():
     open_tab("Place")
     shot("18_en_place")
     open_tab("More")
-    test_alarm("Test alarm in one minute", "Wake me now", "Dismiss", "19_en")
+    p = scroll_to("Light")
+    if p:
+        shell(f"input tap {p[0]} {p[1]}")
+        time.sleep(2)
+        open_tab("Alarms")
+        time.sleep(2)
+        shot("18b_en_light")
+        open_tab("More")
+        p = scroll_to("Night")
+        if p:
+            shell(f"input tap {p[0]} {p[1]}")
+            time.sleep(2)
+    open_tab("More")
+    test_alarm("Test alarm in one minute", "Wake me now", "Dismiss", "19_en", "Alarms", "Don't wake me today")
     check("английский")
     shot("20_konets")
 

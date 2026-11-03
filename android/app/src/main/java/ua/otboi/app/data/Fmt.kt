@@ -55,11 +55,11 @@ object Fmt {
         }
     }
 
-    /** «+3°», «−1°», «0°». */
-    fun temp(c: Double): String {
+    /** «+3°», «−1°», «0°». plus = false — без плюса (для крупных цифр). */
+    fun temp(c: Double, plus: Boolean = true): String {
         val r = c.roundToInt()
         return when {
-            r > 0 -> "+$r°"
+            r > 0 -> if (plus) "+$r°" else "$r°"
             r < 0 -> "−${abs(r)}°"
             else -> "0°"
         }

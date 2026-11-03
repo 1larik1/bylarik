@@ -69,7 +69,7 @@ fun AlarmsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(top = 12.dp, bottom = 110.dp),
+                .padding(top = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(
@@ -112,7 +112,19 @@ fun AlarmsScreen(
             UpdateCard(update, compact = true)
 
             if (w == null) {
-                if (s.weather && s.stateId > 0) WeatherCard(weather, s, now)
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SectionLabel(T.tabAlarms.uppercase(T.locale), Modifier.weight(1f))
+                    Box(
+                        Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(LocalAccent.current)
+                            .clickable(onClick = onAdd),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Ic.plus, T.addAlarm, tint = C.OnAccent, modifier = Modifier.size(20.dp))
+                    }
+                }
                 alarms.forEach { a ->
                     AlarmRow(
                         a,
@@ -129,6 +141,7 @@ fun AlarmsScreen(
                         Txt(T.emptyAlarmsHint, 13.sp, C.Text3)
                     }
                 }
+                if (s.weather && s.stateId > 0) WeatherCard(weather, s, now)
                 NewsTeaser(alertPosts.firstOrNull(), now, onNews)
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -150,21 +163,6 @@ fun AlarmsScreen(
             }
         }
 
-        if (w == null) {
-            val accent = LocalAccent.current
-            Box(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = 20.dp)
-                    .size(62.dp)
-                    .clip(CircleShape)
-                    .background(accent)
-                    .clickable(onClick = onAdd),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Ic.plus, T.addAlarm, tint = C.OnAccent, modifier = Modifier.size(26.dp))
-            }
-        }
     }
 }
 
@@ -283,7 +281,7 @@ private fun WeatherBody(w: WeatherData, now: Long) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Ic.weather(w.code), T.weatherCode(w.code), tint = accent, modifier = Modifier.size(34.dp))
             Spacer(Modifier.width(12.dp))
-            ClockText(Fmt.temp(w.temp), 40f * d.smallScale, d.small, d.smallWeight, C.Text, C.Text)
+            ClockText(Fmt.temp(w.temp, plus = false), 40f * d.smallScale, d.small, d.smallWeight, C.Text, C.Text)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Txt(T.weatherCode(w.code), 15.sp, C.Text, FontWeight.SemiBold, maxLines = 1)
