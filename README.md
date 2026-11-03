@@ -28,9 +28,10 @@ If there's an alert in your area when your alarm is due, bylarik doesn't wake yo
 - **Sounds.** Choose a sound for each alarm: one of the phone's sounds, your own audio file or vibration only. You can preview it, and the volume can rise gently or start at full.
 - **Weather and what to wear.** The forecast for your oblast's main city and a short clothing tip, both on the main screen and on the ringing screen.
 - **Telegram news.** Posts from public monitoring channels, filtered down to the ones about alerts. They're for information only; the decision to wake you never depends on them.
+- **Home screen widget.** The clock and date, your next alarm and the alert status for your area. Tap the status to check right away. Add it from **More → Widget** or from the home screen's widget list.
 - **Four themes** (Night, Graphite, Ocean, Light) and three styles of large digits.
 - **Your language.** Ukrainian, Russian or English, following the phone's language. On Android 13+ you can also set it under Settings → Apps → bylarik → Language.
-- **Self-updating.** The app checks this repository's releases and offers new versions. Your settings stay as they are.
+- **Self-updating.** When a new version is out, the app offers it as soon as you open it. Your alarms and settings stay as they are.
 
 ## Install
 
@@ -74,6 +75,7 @@ Weather comes from [Open-Meteo](https://open-meteo.com) for the main city of you
 
 - When no alarm is ringing or waiting, bylarik does nothing in the background. The alarm time is kept by Android itself.
 - Alert data, news and weather refresh only while the app is open on screen.
+- The widget's clock is drawn by Android itself. Its alert status refreshes every 15 minutes (30 with **Battery saver**), and only while the phone is awake anyway: with the screen off it never wakes the phone.
 - The only noticeable use is while an alarm waits for the all-clear: a request every 20 seconds and a partial wake lock, for at most the wait time you set. **Battery saver** cuts the number of requests to a third.
 
 ## Privacy
@@ -85,11 +87,11 @@ There are no accounts, no analytics and no ads. The app talks only to the servic
 Every push to `android/` goes through this pipeline in GitHub Actions:
 
 1. Build the app and run the unit tests.
-2. Install it on an Android 14 emulator and test it like a person would. The test picks an area, walks through the screens in all three languages and switches all four themes. It also sets a test alarm with the screen locked and checks that it rings, or waits for the all-clear if an alert is on.
+2. Install it on an Android 14 emulator and test it like a person would. The test picks an area, walks through the screens in all three languages and switches all four themes. It adds the home screen widget, checks the "new version" window with a copy that has an older build number, and sets a test alarm with the screen locked and checks that it rings, or waits for the all-clear if an alert is on.
 3. Only if that passes, publish a new [release](https://github.com/1larik1/bylarik/releases).
 4. Install the previous version on an emulator and check that it updates itself to the new one.
 
-The app checks for updates when you open it (at most once an hour) and in the morning after an alarm. When there's a new version, it shows a notification.
+The app checks for updates when you open it (at most once an hour) and in the morning after an alarm. When there's a new version, it asks right away when you open the app; **Later** hides the question for a few hours, and the update waits in **More**. After an alarm it shows a notification instead.
 
 ## Building
 
@@ -109,6 +111,7 @@ android/app/src/main/java/ua/otboi/app/
   i18n/     all UI text in Ukrainian, Russian and English
   ui/       screens, themes, components
   update/   self-update from GitHub releases
+  widget/   the home screen widget
 android/ci/smoke.py   the emulator test
 ```
 
