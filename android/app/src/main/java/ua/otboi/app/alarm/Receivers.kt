@@ -19,7 +19,8 @@ class AlarmReceiver : BroadcastReceiver() {
                 context,
                 WakeService.intent(context, WakeService.ACTION_RING)
                     .putExtra(WakeService.EXTRA_LABEL, intent.getStringExtra(Scheduler.EXTRA_LABEL))
-                    .putExtra(WakeService.EXTRA_REASON, "Отложенный будильник")
+                    .putExtra(WakeService.EXTRA_REASON, ua.otboi.app.i18n.T.rSnoozed)
+                    .putExtra(WakeService.EXTRA_ALARM, intent.getLongExtra(Scheduler.EXTRA_ALARM, Scheduler.TEST_ID))
             )
             Scheduler.ACTION_DEADLINE -> WakeService.start(context, WakeService.ACTION_RESUME)
         }

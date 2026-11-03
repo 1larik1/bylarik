@@ -23,6 +23,11 @@ import ua.otboi.app.alarm.RingState
 import ua.otboi.app.alarm.WakeService
 import ua.otboi.app.data.Fmt
 import ua.otboi.app.data.Store
+import ua.otboi.app.data.Wear
+import ua.otboi.app.i18n.T
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
 
 /** Экран звонящего будильника — поверх блокировки. */
 class RingActivity : ComponentActivity() {
@@ -38,9 +43,13 @@ class RingActivity : ComponentActivity() {
             )
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        ua.otboi.app.i18n.L.init(this)
+        val light = Palettes.byId(Store.settings.value.themeId).light
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.BLACK),
+            statusBarStyle = if (light) SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+            else SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = if (light) SystemBarStyle.light(android.graphics.Color.WHITE, android.graphics.Color.WHITE)
+            else SystemBarStyle.dark(android.graphics.Color.BLACK),
         )
         setContent {
             OtboiTheme {
@@ -80,22 +89,46 @@ private fun RingScreen(info: RingInfo, snoozeMin: Int, onDismiss: () -> Unit, on
     Column(
         Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(C.Bg)
             .safeDrawingPadding()
             .padding(horizontal = 24.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.weight(1f))
-        Txt("ПОРА ВСТАВАТЬ", 14.sp, C.PurpleLight, FontWeight.SemiBold, letterSpacing = 3.sp)
+        Txt(T.timeToGetUp, 14.sp, C.PurpleLight, FontWeight.SemiBold, letterSpacing = 3.sp)
         Spacer(Modifier.height(10.dp))
-        ClockText(Fmt.hm(now), d.heroSize, d.hero, d.heroWeight, Color.White, accent, spacing = d.heroSpacing)
+        ClockText(Fmt.hm(now), d.heroSize, d.hero, d.heroWeight, C.Hero, accent, spacing = d.heroSpacing)
         Spacer(Modifier.height(12.dp))
-        Txt("Будильник ${info.label}", 18.sp, C.Text, FontWeight.SemiBold, align = TextAlign.Center)
+        Txt(T.alarmLabel(info.label), 18.sp, C.Text, FontWeight.SemiBold, align = TextAlign.Center)
         Spacer(Modifier.height(6.dp))
         Txt(info.reason, 16.sp, C.Text2, align = TextAlign.Center, lineHeight = 22.sp)
+        val s by Store.settings.collectAsState()
+        val w by Store.weather.collectAsState()
+        val wd = w
+        if (s.weather && wd != null && wd.stateId == s.stateId) {
+            Spacer(Modifier.height(24.dp))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(C.Surface)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Ic.weather(wd.code), null, tint = accent, modifier = Modifier.size(30.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Txt(
+                        "${Fmt.temp(wd.temp)} · ${T.weatherCode(wd.code)} · ${T.feels(Fmt.temp(wd.feels))}",
+                        14.sp, C.Text, FontWeight.SemiBold, maxLines = 2,
+                    )
+                    Txt(Wear.advice(wd, Fmt.zoned(now).hour), 14.sp, C.Text2, lineHeight = 19.sp)
+                }
+            }
+        }
         Spacer(Modifier.weight(1.3f))
-        PrimaryButton("Выключить", height = 64.dp, onClick = onDismiss)
+        PrimaryButton(T.dismiss, height = 64.dp, onClick = onDismiss)
         Spacer(Modifier.height(12.dp))
-        OutlineButton("Отложить на $snoozeMin мин", height = 56.dp, onClick = onSnooze)
+        OutlineButton(T.snoozeBtn(snoozeMin), height = 56.dp, onClick = onSnooze)
     }
 }

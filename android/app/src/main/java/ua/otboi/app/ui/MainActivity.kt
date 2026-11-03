@@ -35,16 +35,18 @@ import ua.otboi.app.data.Feed
 import ua.otboi.app.data.Live
 import ua.otboi.app.data.RegionRepo
 import ua.otboi.app.data.Store
+import ua.otboi.app.i18n.T
 import ua.otboi.app.update.Updater
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.BLACK),
-        )
+        ua.otboi.app.i18n.L.init(this)
+        applyBars(Palettes.byId(Store.settings.value.themeId).light)
         setContent {
+            val s by Store.settings.collectAsState()
+            val light = Palettes.byId(s.themeId).light
+            LaunchedEffect(light) { applyBars(light) }
             OtboiTheme { AppRoot() }
         }
         // Пока приложение открыто: тревога — раз в минуту, новости — раз в 2 минуты.
@@ -65,6 +67,21 @@ class MainActivity : ComponentActivity() {
                 }
                 launch { Updater.check(applicationContext) }
             }
+        }
+    }
+
+    /** Цвет значков в строке состояния под тему (тёмные значки на светлой теме). */
+    private fun applyBars(light: Boolean) {
+        if (light) {
+            enableEdgeToEdge(
+                statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+                navigationBarStyle = SystemBarStyle.light(android.graphics.Color.WHITE, android.graphics.Color.WHITE),
+            )
+        } else {
+            enableEdgeToEdge(
+                statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+                navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.BLACK),
+            )
         }
     }
 
@@ -123,10 +140,10 @@ fun AppRoot() {
 @Composable
 fun BottomNav(tab: Int, onTab: (Int) -> Unit) {
     val items = listOf(
-        Ic.clock to "Будильники",
-        Ic.rss to "Новости",
-        Ic.map to "Область",
-        Ic.dots to "Ещё",
+        Ic.clock to T.tabAlarms,
+        Ic.rss to T.tabNews,
+        Ic.map to T.tabPlace,
+        Ic.dots to T.tabMore,
     )
     Column(Modifier.fillMaxWidth().background(C.Nav)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(C.NavStroke))

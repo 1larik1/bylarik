@@ -40,7 +40,7 @@ object RegionRepo {
                         runCatching { file.writeText(body) }
                         error.value = ""
                     } else if (tree.value.isEmpty()) {
-                        error.value = "список регионов пуст"
+                        error.value = ua.otboi.app.i18n.T.eRegionsEmpty
                     }
                 } else if (tree.value.isEmpty()) {
                     error.value = err
@@ -50,26 +50,51 @@ object RegionRepo {
     }
 }
 
-/** Выбор места: сохраняет ID и человеческое название. */
+/** Выбор места и его название на языке телефона. */
 object Places {
     fun select(stateId: Int, districtId: Int, communityId: Int) {
         val state = RegionRepo.tree.value.firstOrNull { it.id == stateId }
         val district = state?.children?.firstOrNull { it.id == districtId }
         val community = district?.children?.firstOrNull { it.id == communityId }
-        val parts = ArrayList<String>()
-        parts += Oblasts.short(Oblasts.name(stateId))
-        if (districtId > 0) parts += district?.let { Oblasts.short(it.name) } ?: "район"
-        if (communityId > 0) parts += community?.let { Oblasts.short(it.name) } ?: "громада"
         Store.updateSettings {
             it.copy(
                 stateId = stateId,
                 districtId = districtId,
                 communityId = if (districtId > 0) communityId else 0,
-                placeShort = parts.last(),
-                placeFull = parts.joinToString(" · "),
+                districtName = if (districtId > 0) district?.name ?: "" else "",
+                communityName = if (districtId > 0 && communityId > 0) community?.name ?: "" else "",
+                placeShort = "",
+                placeFull = "",
             )
         }
         Store.setReading(null)
+    }
+
+    private fun districtName(s: AppSettings): String = s.districtName.ifBlank {
+        RegionRepo.tree.value.firstOrNull { it.id == s.stateId }?.children?.firstOrNull { it.id == s.districtId }?.name ?: ""
+    }
+
+    private fun communityName(s: AppSettings): String = s.communityName.ifBlank {
+        RegionRepo.tree.value.firstOrNull { it.id == s.stateId }?.children?.firstOrNull { it.id == s.districtId }
+            ?.children?.firstOrNull { it.id == s.communityId }?.name ?: ""
+    }
+
+    /** Самое точное название: громада, район или область. */
+    fun shortName(s: AppSettings): String {
+        if (s.stateId <= 0) return ""
+        if (s.communityId > 0) communityName(s).takeIf { it.isNotBlank() }?.let { return Oblasts.short(it) }
+        if (s.districtId > 0) districtName(s).takeIf { it.isNotBlank() }?.let { return Oblasts.short(it) }
+        if ((s.districtId > 0 || s.communityId > 0) && s.placeShort.isNotBlank()) return s.placeShort
+        return Oblasts.display(s.stateId)
+    }
+
+    /** «Вінницька обл. · Вінницький р-н · …» */
+    fun fullName(s: AppSettings): String {
+        if (s.stateId <= 0) return ""
+        val parts = arrayListOf(Oblasts.display(s.stateId))
+        if (s.districtId > 0) districtName(s).takeIf { it.isNotBlank() }?.let { parts += Oblasts.short(it) }
+        if (s.communityId > 0) communityName(s).takeIf { it.isNotBlank() }?.let { parts += Oblasts.short(it) }
+        return parts.joinToString(" · ")
     }
 }
 
@@ -80,7 +105,7 @@ object Live {
     suspend fun check(ctx: Context): Reading = mutex.withLock {
         val s = Store.settings.value
         if (s.stateId <= 0) {
-            val r = Reading(Status.UNKNOWN, "область не выбрана")
+            val r = Reading(Status.UNKNOWN, ua.otboi.app.i18n.T.eNoPlace)
             Store.setReading(r)
             return@withLock r
         }
@@ -150,7 +175,7 @@ object Feed {
                 val all = ArrayList<Post>()
                 val errs = HashMap<String, String>()
                 for ((ch, res) in results) {
-                    res.onSuccess { all += it }.onFailure { errs[ch] = it.message ?: "ошибка" }
+                    res.onSuccess { all += it }.onFailure { errs[ch] = it.message ?: ua.otboi.app.i18n.T.eBadResponse }
                 }
                 if (all.isNotEmpty() || errs.isEmpty()) {
                     posts.value = all.distinctBy { it.id }.sortedByDescending { it.time }

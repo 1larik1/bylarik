@@ -1,5 +1,6 @@
 package ua.otboi.app.ui
 
+import ua.otboi.app.i18n.T
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,7 +54,7 @@ fun RegionScreen(onDone: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (level > 0) {
-                RoundIconButton(Ic.back, "Назад") {
+                RoundIconButton(Ic.back, T.back) {
                     level -= 1
                     query = ""
                 }
@@ -61,13 +62,13 @@ fun RegionScreen(onDone: () -> Unit) {
             }
             Column(Modifier.weight(1f)) {
                 val title = when (level) {
-                    0 -> "Твоя область"
-                    1 -> "Район"
-                    else -> "Громада"
+                    0 -> T.yourOblast
+                    1 -> T.regionDistrict
+                    else -> T.regionCommunity
                 }
                 val sub = when (level) {
-                    0 -> "Будильник смотрит тревогу здесь"
-                    1 -> Oblasts.short(Oblasts.name(s.stateId))
+                    0 -> T.regionOblastSub
+                    1 -> Oblasts.display(s.stateId)
                     else -> district?.let { Oblasts.short(it.name) } ?: ""
                 }
                 Txt(title, 26.sp, C.Text, FontWeight.Bold)
@@ -78,9 +79,9 @@ fun RegionScreen(onDone: () -> Unit) {
         if (level == 0 && s.stateId > 0) {
             Spacer(Modifier.height(14.dp))
             CardBox(background = C.Surface2, border = C.Stroke) {
-                Txt("СЕЙЧАС", 12.sp, C.PurpleLight, FontWeight.Bold, letterSpacing = 1.2.sp)
+                Txt(T.regionNow, 12.sp, C.PurpleLight, FontWeight.Bold, letterSpacing = 1.2.sp)
                 Spacer(Modifier.height(4.dp))
-                Txt(s.placeFull.ifBlank { s.placeShort }, 16.sp, C.Text, FontWeight.SemiBold)
+                Txt(ua.otboi.app.data.Places.fullName(s), 16.sp, C.Text, FontWeight.SemiBold)
                 Spacer(Modifier.height(10.dp))
                 StatusPill(pillFor(reading, s, now))
             }
@@ -90,9 +91,9 @@ fun RegionScreen(onDone: () -> Unit) {
         InputField(
             query, { query = it },
             when (level) {
-                0 -> "Найти область"
-                1 -> "Найти район"
-                else -> "Найти громаду"
+                0 -> T.searchOblast
+                1 -> T.searchDistrict
+                else -> T.searchCommunity
             },
             Modifier.fillMaxWidth(),
             leading = Ic.search,
@@ -106,7 +107,7 @@ fun RegionScreen(onDone: () -> Unit) {
             when (level) {
                 0 -> {
                     items(Oblasts.all.filter { matches(it.name) }, key = { it.id }) { o ->
-                        PlaceRow(Oblasts.short(o.name), null, o.id == s.stateId, arrow = true) {
+                        PlaceRow(Oblasts.display(o.id), null, o.id == s.stateId, arrow = true) {
                             if (o.id != s.stateId) Places.select(o.id, 0, 0)
                             query = ""
                             level = 1
@@ -115,7 +116,7 @@ fun RegionScreen(onDone: () -> Unit) {
                 }
                 1 -> {
                     item(key = "all") {
-                        PlaceRow("Вся область", "тревога в любом районе — тоже тревога", s.districtId == 0, arrow = false) {
+                        PlaceRow(T.wholeOblast, T.wholeOblastHint, s.districtId == 0, arrow = false) {
                             if (s.districtId != 0) Places.select(s.stateId, 0, 0)
                             onDone()
                         }
@@ -136,7 +137,7 @@ fun RegionScreen(onDone: () -> Unit) {
                 }
                 else -> {
                     item(key = "all") {
-                        PlaceRow("Весь район", "тревога в любой громаде района — тоже тревога", s.communityId == 0, arrow = false) {
+                        PlaceRow(T.wholeDistrict, T.wholeDistrictHint, s.communityId == 0, arrow = false) {
                             if (s.communityId != 0) Places.select(s.stateId, s.districtId, 0)
                             onDone()
                         }
@@ -178,7 +179,7 @@ private fun PlaceRow(title: String, hint: String?, selected: Boolean, arrow: Boo
                 Modifier.size(26.dp).clip(CircleShape).background(accent),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Ic.check, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Icon(Ic.check, null, tint = C.OnAccent, modifier = Modifier.size(16.dp))
             }
         } else if (arrow) {
             Icon(Ic.chevron, null, tint = C.Text3, modifier = Modifier.size(20.dp))
@@ -190,11 +191,11 @@ private fun PlaceRow(title: String, hint: String?, selected: Boolean, arrow: Boo
 private fun LoadingRow(error: String, onRetry: () -> Unit) {
     CardBox {
         if (error.isBlank()) {
-            Txt("Загружаю районы…", 14.sp, C.Text2)
+            Txt(T.loadingDistricts, 14.sp, C.Text2)
         } else {
-            Txt("Не удалось загрузить районы: $error", 14.sp, C.RedText)
+            Txt(T.loadFailed(error), 14.sp, C.RedText)
             Spacer(Modifier.height(10.dp))
-            OutlineButton("Повторить", height = 44.dp, onClick = onRetry)
+            OutlineButton(T.retry, height = 44.dp, onClick = onRetry)
         }
     }
 }

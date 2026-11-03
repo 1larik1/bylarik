@@ -4,7 +4,40 @@ import ua.otboi.app.net.RegionNode
 
 /** Области Украины. ID совпадают с ukrainealarm.com (siren.pp.ua). */
 object Oblasts {
-    class Oblast(val id: Int, val name: String, val keys: List<String>)
+    class Oblast(val id: Int, val name: String, val keys: List<String>) {
+        /** Областной центр — для погоды. */
+        val city: City get() = cities[id] ?: City("Київ", "Kyiv", 50.4501, 30.5234)
+    }
+
+    class City(val uk: String, val en: String, val lat: Double, val lon: Double)
+
+    private val cities: Map<Int, City> = mapOf(
+        4 to City("Вінниця", "Vinnytsia", 49.2331, 28.4682),
+        8 to City("Луцьк", "Lutsk", 50.7472, 25.3254),
+        9 to City("Дніпро", "Dnipro", 48.4647, 35.0462),
+        28 to City("Краматорськ", "Kramatorsk", 48.7389, 37.5848),
+        10 to City("Житомир", "Zhytomyr", 50.2547, 28.6587),
+        11 to City("Ужгород", "Uzhhorod", 48.6208, 22.2879),
+        12 to City("Запоріжжя", "Zaporizhzhia", 47.8388, 35.1396),
+        13 to City("Івано-Франківськ", "Ivano-Frankivsk", 48.9226, 24.7111),
+        31 to City("Київ", "Kyiv", 50.4501, 30.5234),
+        14 to City("Київ", "Kyiv", 50.4501, 30.5234),
+        15 to City("Кропивницький", "Kropyvnytskyi", 48.5079, 32.2623),
+        16 to City("Сєвєродонецьк", "Sievierodonetsk", 48.9482, 38.4917),
+        27 to City("Львів", "Lviv", 49.8397, 24.0297),
+        17 to City("Миколаїв", "Mykolaiv", 46.975, 31.9946),
+        18 to City("Одеса", "Odesa", 46.4825, 30.7233),
+        19 to City("Полтава", "Poltava", 49.5883, 34.5514),
+        5 to City("Рівне", "Rivne", 50.6199, 26.2516),
+        20 to City("Суми", "Sumy", 50.9077, 34.7981),
+        21 to City("Тернопіль", "Ternopil", 49.5535, 25.5948),
+        22 to City("Харків", "Kharkiv", 49.9935, 36.2304),
+        23 to City("Херсон", "Kherson", 46.6354, 32.6169),
+        3 to City("Хмельницький", "Khmelnytskyi", 49.4229, 26.9871),
+        24 to City("Черкаси", "Cherkasy", 49.4444, 32.0598),
+        26 to City("Чернівці", "Chernivtsi", 48.2921, 25.9358),
+        25 to City("Чернігів", "Chernihiv", 51.4982, 31.2893),
+    )
 
     val all: List<Oblast> = listOf(
         Oblast(4, "Вінницька область", listOf("вінниц", "вінничч")),
@@ -34,14 +67,20 @@ object Oblasts {
         Oblast(25, "Чернігівська область", listOf("чернігів")),
     )
 
-    fun name(id: Int): String = all.firstOrNull { it.id == id }?.name ?: "Регион $id"
+    fun name(id: Int): String = all.firstOrNull { it.id == id }?.name ?: "$id"
 
-    /** «Київська область» → «Київська обл.», «Броварський район» → «Броварський р-н». */
-    fun short(name: String): String = name
-        .replace("територіальна громада", "громада")
-        .replace(" область", " обл.")
-        .replace(" район", " р-н")
-        .trim()
+    fun byId(id: Int): Oblast? = all.firstOrNull { it.id == id }
+
+    /** Короткое название на языке телефона: «Київська обл.», «Kyiv Oblast», «Броварський р-н». */
+    fun short(name: String): String = ua.otboi.app.i18n.T.shortPlace(name)
+
+    /** Название области для показа: «Вінницька обл.» / «Vinnytsia Oblast». */
+    fun display(id: Int): String = ua.otboi.app.i18n.T.oblastName(id, short(name(id)))
+
+    fun cityName(id: Int): String {
+        val c = byId(id)?.city ?: return ""
+        return ua.otboi.app.i18n.T.cityName(c.uk, c.en)
+    }
 
     /** Основа слова для подсветки новостей: «Броварський район» → «бровар». */
     fun stem(name: String): String? {

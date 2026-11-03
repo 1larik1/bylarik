@@ -12,8 +12,8 @@ android {
         applicationId = "ua.otboi.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.2.0"
+        versionCode = 11
+        versionName = "1.3.0"
         // Откуда приложение берёт обновления: репозиторий, в котором его собрали (GitHub Actions
         // передаёт GITHUB_REPOSITORY сам). Пусто — автообновление выключено.
         val updateRepo = (project.findProperty("updateRepo") as String?) ?: System.getenv("GITHUB_REPOSITORY") ?: ""

@@ -24,6 +24,8 @@ import ua.otboi.app.data.AlertRule
 import ua.otboi.app.data.Fmt
 import ua.otboi.app.data.Live
 import ua.otboi.app.data.Reading
+import ua.otboi.app.data.Sound
+import ua.otboi.app.i18n.T
 import ua.otboi.app.data.Status
 import ua.otboi.app.data.Store
 import ua.otboi.app.data.Waiting
@@ -63,7 +65,7 @@ class WakeService : Service() {
             try {
                 ContextCompat.startForegroundService(ctx, intent)
             } catch (e: Exception) {
-                Store.addLog("Не удалось запустить проверку: ${e.javaClass.simpleName}")
+                Store.addLog(T.lStartFail(e.javaClass.simpleName))
             }
         }
 
@@ -92,7 +94,7 @@ class WakeService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        goForeground(fgId, fgNotif ?: Notifs.working(this, "Проверяю тревогу…"))
+        goForeground(fgId, fgNotif ?: Notifs.working(this, T.nChecking))
         when (intent?.action ?: ACTION_RESUME) {
             ACTION_FIRE -> onFire(
                 intent?.getLongExtra(EXTRA_ALARM, 0L) ?: 0L,
@@ -102,9 +104,11 @@ class WakeService : Service() {
                 val label = intent?.getStringExtra(EXTRA_LABEL)
                     ?: Store.waiting.value?.title
                     ?: Fmt.hm(System.currentTimeMillis())
-                val reason = intent?.getStringExtra(EXTRA_REASON) ?: "Разбудить сейчас"
+                val reason = intent?.getStringExtra(EXTRA_REASON) ?: T.rWakeNow
+                val alarmId = intent?.getLongExtra(EXTRA_ALARM, Long.MIN_VALUE)?.takeIf { it != Long.MIN_VALUE }
+                    ?: Store.waiting.value?.alarmId ?: Scheduler.TEST_ID
                 cancelJobs()
-                ring(label, reason)
+                ring(label, reason, alarmId)
             }
             ACTION_DISMISS -> dismiss()
             ACTION_SNOOZE -> snooze()
@@ -140,23 +144,23 @@ class WakeService : Service() {
         Scheduler.rescheduleAll(this)
 
         if (alarm == null || !alarm.enabled) {
-            Store.addLog("Сработал удалённый или выключенный будильник — пропускаю")
+            Store.addLog(T.lDeleted)
             if (mode == Mode.IDLE) finish()
             return
         }
-        val label = (if (test) "Тест " else "") + alarm.timeText
+        val label = (if (test) T.testWord + " " else "") + alarm.timeText
 
         when (mode) {
             Mode.RINGING -> {
-                Store.addLog("$label: уже звонит другой будильник")
+                Store.addLog(T.lAlreadyRinging(label))
                 return
             }
             Mode.WAITING, Mode.CHECKING -> {
                 if (alarm.rule == AlertRule.ALWAYS) {
                     cancelJobs()
-                    ring(label, "Будильник без учёта тревог")
+                    ring(label, T.rAlways, alarm.id)
                 } else {
-                    Store.addLog("$label: уже жду отбоя по другому будильнику")
+                    Store.addLog(T.lAlreadyWaiting(label))
                 }
                 return
             }
@@ -164,7 +168,7 @@ class WakeService : Service() {
         }
 
         if (alarm.rule == AlertRule.ALWAYS) {
-            ring(label, "Будильник без учёта тревог")
+            ring(label, T.rAlways, alarm.id)
             return
         }
 
@@ -178,22 +182,22 @@ class WakeService : Service() {
 
         mode = Mode.CHECKING
         acquireWake(10 * 60_000L)
-        goForeground(ID_WORK, Notifs.working(this, "Будильник $label: проверяю тревогу…"))
+        goForeground(ID_WORK, Notifs.working(this, T.nCheckingFor(label)))
         job = scope.launch {
             val reading = checkWithRetries()
             val s = Store.settings.value
-            if (reading.backup) Store.addLog("$label: основной источник не ответил — решаю по запасному (${ua.otboi.app.net.BackupApi.NAME})")
+            if (reading.backup) Store.addLog(T.lBackup(label, ua.otboi.app.net.BackupApi.NAME))
             when {
                 reading.status == Status.UNKNOWN ->
-                    ring(label, "Не удалось проверить тревогу (${reading.reason}) — бужу на всякий случай")
+                    ring(label, T.rUnknown(reading.reason), alarm.id)
                 !Live.isAlertForMe(reading, s) ->
-                    ring(label, if (test) "Тест: тревоги нет — будильник звонит" else "Тревоги нет — пора вставать")
+                    ring(label, if (test) T.rTestNoAlert else T.rNoAlert, alarm.id)
                 alarm.rule == AlertRule.SKIP -> {
-                    Store.addLog("$label: тревога — не бужу (правило «Не будить»)")
+                    Store.addLog(T.lSkip(label))
                     Notifs.info(
                         this@WakeService,
-                        "Будильник $label не звонил",
-                        "Тревога" + (if (s.placeShort.isNotBlank()) " · ${s.placeShort}" else "") + ". Спи дальше."
+                        T.nSkippedTitle(label),
+                        T.nSkippedText(ua.otboi.app.data.Places.shortName(s))
                     )
                     finish()
                 }
@@ -212,7 +216,7 @@ class WakeService : Service() {
     }
 
     private suspend fun checkWithRetries(): Reading {
-        var last = Reading(Status.UNKNOWN, "нет ответа")
+        var last = Reading(Status.UNKNOWN, T.eTimeout)
         for (attempt in 0 until 4) {
             last = Live.check(applicationContext)
             if (last.status != Status.UNKNOWN) return last
@@ -225,11 +229,11 @@ class WakeService : Service() {
 
     private fun startWaiting(w: Waiting) {
         if (System.currentTimeMillis() >= w.deadline) {
-            ring(w.title, "Тревога ещё идёт, но ждать дольше нельзя — пора вставать")
+            ring(w.title, T.rDeadline, w.alarmId)
             return
         }
         Store.setWaiting(w)
-        Store.addLog("${w.title}: тревога — жду отбоя (не позже ${Fmt.hm(w.deadline)})")
+        Store.addLog(T.lWait(w.title, Fmt.hm(w.deadline)))
         Scheduler.scheduleDeadline(this, w.deadline)
         enterWaitLoop()
     }
@@ -253,11 +257,11 @@ class WakeService : Service() {
             val delayMs = s.delayAfterClearMin * 60_000L
             val now = System.currentTimeMillis()
             if (w.clearSince > 0L && now >= w.clearSince + delayMs) {
-                ring(w.title, "Отбой в ${Fmt.hm(w.clearSince)} — пора вставать")
+                ring(w.title, T.rClear(Fmt.hm(w.clearSince)), w.alarmId)
                 return
             }
             if (now >= w.deadline) {
-                ring(w.title, "Тревога ещё идёт, но ждать дольше нельзя — пора вставать")
+                ring(w.title, T.rDeadline, w.alarmId)
                 return
             }
             val r = Live.check(applicationContext)
@@ -267,10 +271,10 @@ class WakeService : Service() {
                 if (!alert && cur.clearSince == 0L) {
                     val t = System.currentTimeMillis()
                     Store.setWaiting(cur.copy(clearSince = t))
-                    Store.addLog("${cur.title}: отбой — зазвоню в ${Fmt.hm(t + delayMs)}")
+                    Store.addLog(T.lClear(cur.title, Fmt.hm(t + delayMs)))
                 } else if (alert && cur.clearSince > 0L) {
                     Store.setWaiting(cur.copy(clearSince = 0L))
-                    Store.addLog("${cur.title}: снова тревога — жду дальше")
+                    Store.addLog(T.lAlertAgain(cur.title))
                 }
             }
             updateWaitNotif()
@@ -297,16 +301,16 @@ class WakeService : Service() {
             return
         }
         if (System.currentTimeMillis() >= w.deadline) {
-            ring(w.title, "Тревога ещё идёт, но ждать дольше нельзя — пора вставать")
+            ring(w.title, T.rDeadline, w.alarmId)
             return
         }
-        Store.addLog("${w.title}: продолжаю ждать отбоя")
+        Store.addLog(T.lResume(w.title))
         enterWaitLoop()
     }
 
     private fun stopWaiting() {
         val w = Store.waiting.value
-        if (w != null) Store.addLog("${w.title}: ожидание отменено — сегодня не бужу")
+        if (w != null) Store.addLog(T.lCancelled(w.title))
         Store.setWaiting(null)
         Scheduler.cancelDeadline(this)
         if (mode != Mode.RINGING) finish()
@@ -314,16 +318,21 @@ class WakeService : Service() {
 
     // MARK: звонок
 
-    private fun ring(label: String, reason: String) {
+    private fun soundFor(alarmId: Long): Sound =
+        Store.alarms.value.firstOrNull { it.id == alarmId }?.sound ?: Sound()
+
+    private fun ring(label: String, reason: String, alarmId: Long) {
         Store.setWaiting(null)
         Scheduler.cancelDeadline(this)
         mode = Mode.RINGING
-        Store.addLog("$label: звоню — $reason")
-        val info = RingInfo(label, reason, System.currentTimeMillis())
+        Store.addLog(T.lRing(label, reason))
+        val info = RingInfo(label, reason, System.currentTimeMillis(), alarmId)
         RingState.current.value = info
         goForeground(ID_RING, Notifs.ringing(this, info, Store.settings.value.snoozeMin))
         ringer?.stop()
-        ringer = Ringer(this).also { it.start(scope) }
+        ringer = Ringer(this, soundFor(alarmId)).also { it.start(scope) }
+        // Погода для экрана будильника (если старше часа).
+        ua.otboi.app.OtboiApp.scope.launch { ua.otboi.app.data.WeatherRepo.refresh(60 * 60_000L) }
         acquireWake(12 * 60_000L)
         try {
             startActivity(Intent(this, RingActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -333,15 +342,15 @@ class WakeService : Service() {
         autoStop = scope.launch {
             delay(10 * 60_000L)
             if (mode == Mode.RINGING) {
-                Store.addLog("$label: звонил 10 минут — выключился сам")
-                Notifs.info(this@WakeService, "Будильник $label звонил 10 минут", "Его никто не выключил.")
+                Store.addLog(T.lAutoStop(label))
+                Notifs.info(this@WakeService, T.nTimeoutTitle(label), T.nTimeoutText)
                 finish()
             }
         }
     }
 
     private fun dismiss() {
-        if (mode == Mode.RINGING) Store.addLog("${RingState.current.value?.label ?: "Будильник"}: выключен")
+        if (mode == Mode.RINGING) Store.addLog(T.lDismissed(RingState.current.value?.label ?: ""))
         finish()
     }
 
@@ -351,9 +360,9 @@ class WakeService : Service() {
             val min = Store.settings.value.snoozeMin
             val at = System.currentTimeMillis() + min * 60_000L
             val label = info?.label ?: Fmt.hm(System.currentTimeMillis())
-            Scheduler.scheduleSnooze(this, at, label)
-            Store.addLog("$label: отложен до ${Fmt.hm(at)}")
-            Notifs.info(this, "Будильник отложен", "Зазвонит в ${Fmt.hm(at)}")
+            Scheduler.scheduleSnooze(this, at, label, info?.alarmId ?: Scheduler.TEST_ID)
+            Store.addLog(T.lSnoozed(label, Fmt.hm(at)))
+            Notifs.info(this, T.nSnoozedTitle, T.nSnoozedText(Fmt.hm(at)))
         }
         finish()
     }
@@ -365,7 +374,7 @@ class WakeService : Service() {
         try {
             ServiceCompat.startForeground(this, id, n, type)
         } catch (e: Exception) {
-            Store.addLog("Ошибка службы: ${e.javaClass.simpleName}")
+            Store.addLog(T.lServiceError(e.javaClass.simpleName))
         }
         if (id != fgId) {
             try {

@@ -1,5 +1,6 @@
 package ua.otboi.app.ui
 
+import ua.otboi.app.i18n.T
 import android.Manifest
 import android.app.AlarmManager
 import android.app.NotificationManager
@@ -20,24 +21,22 @@ object Perms {
         val out = ArrayList<PermItem>()
         val notifOk = Build.VERSION.SDK_INT < 33 ||
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        out += PermItem("notif", "Уведомления", "чтобы показать будильник с кнопками «Выключить» и «Отложить»", notifOk)
+        out += PermItem("notif", T.permTitle("notif"), T.permHint("notif"), notifOk)
 
         val am = ctx.getSystemService(AlarmManager::class.java)
         val exactOk = Build.VERSION.SDK_INT < 31 || am?.canScheduleExactAlarms() == true
-        out += PermItem("exact", "Точное время", "чтобы будильник срабатывал минута в минуту", exactOk)
+        out += PermItem("exact", T.permTitle("exact"), T.permHint("exact"), exactOk)
 
         if (Build.VERSION.SDK_INT >= 34) {
             val nm = ctx.getSystemService(NotificationManager::class.java)
             out += PermItem(
-                "fsi", "Будильник на весь экран",
-                "чтобы экран будильника появлялся поверх блокировки", nm?.canUseFullScreenIntent() == true
+                "fsi", T.permTitle("fsi"), T.permHint("fsi"), nm?.canUseFullScreenIntent() == true
             )
         }
 
         val pm = ctx.getSystemService(PowerManager::class.java)
         out += PermItem(
-            "battery", "Работа без ограничений батареи",
-            "чтобы телефон не усыпил ожидание отбоя ночью", pm?.isIgnoringBatteryOptimizations(ctx.packageName) == true
+            "battery", T.permTitle("battery"), T.permHint("battery"), pm?.isIgnoringBatteryOptimizations(ctx.packageName) == true
         )
         return out
     }

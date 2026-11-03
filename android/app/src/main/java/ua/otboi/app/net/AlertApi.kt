@@ -8,6 +8,7 @@ import org.json.JSONObject
 import org.json.JSONTokener
 import ua.otboi.app.data.Reading
 import ua.otboi.app.data.Status
+import ua.otboi.app.i18n.T
 
 /** Узел дерева регионов: область → район → громада. */
 class RegionNode(val id: Int, val name: String, val type: String, val children: List<RegionNode>) {
@@ -51,8 +52,8 @@ object AlertApi {
     private fun airOnce(path: String): AirResult = try {
         val res = Http.get(BASE + path, UA, "application/json")
         when {
-            res.code == 429 -> AirResult(false, emptyMap(), "сервер перегружен (429)", rateLimited = true)
-            res.code != 200 -> AirResult(false, emptyMap(), "сервер ответил ${res.code}")
+            res.code == 429 -> AirResult(false, emptyMap(), T.eBusy, rateLimited = true)
+            res.code != 200 -> AirResult(false, emptyMap(), T.eCode(res.code))
             else -> parseAlerts(res.body)
         }
     } catch (e: Exception) {
@@ -68,7 +69,7 @@ object AlertApi {
             return if (json is JSONArray && json.length() == 0) {
                 AirResult(true, emptyMap())
             } else {
-                AirResult(false, emptyMap(), "непонятный ответ сервера")
+                AirResult(false, emptyMap(), T.eBadResponse)
             }
         }
         return AirResult(true, out)
@@ -112,7 +113,7 @@ object AlertApi {
     /** Тело ответа /regions или текст ошибки. */
     fun fetchRegionsRaw(): Pair<String?, String> = try {
         val res = Http.get("$BASE/regions", UA, "application/json")
-        if (res.code == 200) res.body to "" else null to "сервер ответил ${res.code}"
+        if (res.code == 200) res.body to "" else null to T.eCode(res.code)
     } catch (e: Exception) {
         null to Http.shortError(e)
     }
@@ -169,7 +170,7 @@ object AlertApi {
     }
 
     suspend fun status(stateId: Int, districtId: Int, communityId: Int, tree: List<RegionNode>): Reading {
-        if (stateId <= 0) return Reading(Status.UNKNOWN, "область не выбрана")
+        if (stateId <= 0) return Reading(Status.UNKNOWN, T.eNoPlace)
         val community = if (districtId > 0) communityId else 0
         val state = tree.firstOrNull { it.id == stateId }
         if (state != null) {

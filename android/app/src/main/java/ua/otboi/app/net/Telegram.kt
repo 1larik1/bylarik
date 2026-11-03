@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
+import ua.otboi.app.i18n.T
 
 data class Post(
     val id: String,
@@ -27,16 +28,16 @@ object Telegram {
 
     suspend fun fetch(raw: String, keywords: List<String>): Result<List<Post>> = withContext(Dispatchers.IO) {
         if (isPrivateLink(raw)) {
-            return@withContext Result.failure(Exception("закрытые каналы (ссылки с «+») читать нельзя — только публичные"))
+            return@withContext Result.failure(Exception(T.tgPrivate))
         }
         val channel = cleanChannel(raw)
-        if (channel.isEmpty()) return@withContext Result.failure(Exception("не указан канал"))
+        if (channel.isEmpty()) return@withContext Result.failure(Exception(T.tgNoChannel))
         try {
             val res = Http.get("https://t.me/s/$channel", UA, "text/html")
-            if (res.code != 200) return@withContext Result.failure(Exception("Telegram ответил ${res.code}"))
+            if (res.code != 200) return@withContext Result.failure(Exception(T.tgCode(res.code)))
             val posts = parse(res.body, channel, keywords)
             if (posts.isEmpty()) {
-                Result.failure(Exception("постов нет — канал закрыт, без веб-версии или не существует"))
+                Result.failure(Exception(T.tgNoPosts))
             } else {
                 Result.success(posts)
             }

@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -47,6 +49,7 @@ import ua.otboi.app.data.Fmt
 import ua.otboi.app.data.Live
 import ua.otboi.app.data.Reading
 import ua.otboi.app.data.Status
+import ua.otboi.app.i18n.T
 
 /** Размер в dp → sp без учёта системного масштаба шрифта (для больших цифр). */
 @Composable
@@ -146,16 +149,16 @@ fun CardBox(
 data class PillLook(val text: String, val dot: Color, val bg: Color, val fg: Color)
 
 fun pillFor(r: Reading?, s: AppSettings, now: Long): PillLook {
-    if (s.stateId <= 0) return PillLook("Область не выбрана", C.Text3, C.Grey, C.Text2)
-    if (r == null || r.status == Status.UNKNOWN) return PillLook("Нет данных", C.Text3, C.Grey, C.Text2)
-    val dur = if (r.since > 0L) " · " + Fmt.duration(now - r.since) else ""
+    if (s.stateId <= 0) return PillLook(T.statusNoPlace, C.Text3, C.Grey, C.Text2)
+    if (r == null || r.status == Status.UNKNOWN) return PillLook(T.statusNoData, C.Text3, C.Grey, C.Text2)
+    val dur = if (r.since > 0L) Fmt.duration(now - r.since) else ""
     return when (r.status) {
-        Status.CLEAR -> PillLook("Тревоги нет", C.Mint, C.MintBg, C.MintText)
-        Status.ALERT -> PillLook("Тревога$dur", C.Red, C.RedBg, C.RedText)
+        Status.CLEAR -> PillLook(T.statusClear, C.Mint, C.MintBg, C.MintText)
+        Status.ALERT -> PillLook(T.statusAlert(dur), C.Red, C.RedBg, C.RedText)
         else -> if (Live.isAlertForMe(r, s)) {
-            PillLook("Тревога в части области$dur", C.Red, C.RedBg, C.RedText)
+            PillLook(T.statusAlertPart(dur), C.Red, C.RedBg, C.RedText)
         } else {
-            PillLook("Тревога в соседних районах", C.Amber, C.AmberBg, C.AmberText)
+            PillLook(T.statusNearby, C.Amber, C.AmberBg, C.AmberText)
         }
     }
 }
@@ -196,11 +199,12 @@ fun PlaceChip(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) 
 }
 
 @Composable
-fun Toggle(on: Boolean, onChange: (Boolean) -> Unit) {
+fun Toggle(on: Boolean, onChange: (Boolean) -> Unit, description: String? = null) {
     val accent = LocalAccent.current
     val x by animateDpAsState(if (on) 24.dp else 4.dp, label = "knob")
     Box(
         Modifier
+            .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
             .size(52.dp, 32.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(if (on) accent else C.Track)
@@ -228,7 +232,7 @@ fun PrimaryButton(text: String, modifier: Modifier = Modifier, height: Dp = 54.d
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Txt(text, 16.sp, Color.White, FontWeight.SemiBold)
+        Txt(text, 16.sp, C.OnAccent, FontWeight.SemiBold)
     }
 }
 
@@ -266,7 +270,7 @@ fun <T> ChipRow(options: List<T>, selected: T, label: (T) -> String, onSelect: (
                     .padding(horizontal = 14.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Txt(label(o), 14.sp, if (sel) Color.White else C.Text2, FontWeight.SemiBold)
+                Txt(label(o), 14.sp, if (sel) C.OnAccent else C.Text2, FontWeight.SemiBold)
             }
         }
     }

@@ -70,9 +70,21 @@ object Scheduler {
         am.cancel(pending(ctx, RC_DEADLINE, receiver(ctx, ACTION_DEADLINE)))
     }
 
-    fun scheduleSnooze(ctx: Context, at: Long, label: String) {
+    fun scheduleSnooze(ctx: Context, at: Long, label: String, alarmId: Long) {
         val am = ctx.getSystemService(AlarmManager::class.java) ?: return
-        setClock(ctx, am, at, pending(ctx, RC_SNOOZE, receiver(ctx, ACTION_SNOOZE).putExtra(EXTRA_LABEL, label)))
+        val intent = receiver(ctx, ACTION_SNOOZE).putExtra(EXTRA_LABEL, label).putExtra(EXTRA_ALARM, alarmId)
+        setClock(ctx, am, at, pending(ctx, RC_SNOOZE, intent))
+    }
+
+    /** Снять все системные будильники приложения (перед удалением). */
+    fun cancelAll(ctx: Context) {
+        val am = ctx.getSystemService(AlarmManager::class.java) ?: return
+        for ((code, action) in listOf(RC_NEXT to ACTION_FIRE, RC_DEADLINE to ACTION_DEADLINE, RC_SNOOZE to ACTION_SNOOZE, RC_TEST to ACTION_FIRE)) {
+            try {
+                am.cancel(pending(ctx, code, receiver(ctx, action)))
+            } catch (_: Exception) {
+            }
+        }
     }
 
     /** Тест: через минуту сработает будильник с правилом «после отбоя» — вся цепочка как по-настоящему. */

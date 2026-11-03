@@ -1,0 +1,399 @@
+package ua.otboi.app.i18n
+
+import java.util.Locale
+
+object En : Strings() {
+    override val code = "en"
+    override val locale: Locale = Locale.ENGLISH
+
+    override val tabAlarms = "Alarms"
+    override val tabNews = "News"
+    override val tabPlace = "Place"
+    override val tabMore = "More"
+
+    override val statusNoPlace = "No place selected"
+    override val statusNoData = "No data"
+    override val statusClear = "No alert"
+    override fun statusAlert(dur: String) = if (dur.isEmpty()) "Air alert" else "Air alert, $dur"
+    override fun statusAlertPart(dur: String) = if (dur.isEmpty()) "Alert in the oblast" else "Alert in the oblast, $dur"
+    override val statusNearby = "Alert nearby"
+    override fun backupNotice(source: String) = "The main alert source isn't responding. Showing data from $source (by district)."
+
+    override val nextWake = "NEXT WAKE-UP"
+    override val alarmsOff = "All alarms are off"
+    override val alarmsOffHint = "Turn one on below or add a new one"
+    override val emptyAlarms = "No alarms yet"
+    override val emptyAlarmsHint = "Tap + to add one"
+    override val addAlarm = "Add alarm"
+    override fun nightProgress(pct: Int) = "$pct% of the night is over"
+    override fun alertSkipNote(time: String) = "There's an alert right now. If it's still on at $time, this alarm stays silent."
+    override fun alertWaitNote(time: String) = "There's an alert right now. If it's still on at $time, this alarm waits for the all-clear."
+    override fun permsMissing(n: Int) = if (n == 1) "1 permission needed" else "$n permissions needed"
+    override val permsMissingHint = "Without them the alarm may not go off at night"
+    override val latestAlertNews = "LATEST ON THE ALERT"
+    override val newsTeaserEmpty = "News from Telegram channels will show up here"
+    override val yourPlace = "your area"
+
+    override val wakeDelayed = "WAKE-UP ON HOLD"
+    override val waitImmediate = "Waiting for the all-clear. I'll ring right after it."
+    override val waitWithinMinute = "Waiting for the all-clear. I'll ring within a minute of it."
+    override fun waitAfter(min: Int) = "Waiting for the all-clear. I'll ring $min min after it."
+    override fun clearAt(clear: String, ring: String) =
+        if (clear == ring) "All-clear at $clear. Ringing." else "All-clear at $clear. Ringing at $ring."
+    override val canSleep = "You can sleep"
+    override val untilWord = "until"
+    override fun maxWaitLeft(h: Int, left: String) = "waiting $h h at most, $left left"
+    override val aboutAlert = "ABOUT THE ALERT"
+    override val noNewsYet = "No news yet"
+    override val wakeNow = "Wake me now"
+    override val notToday = "Don't wake me today"
+
+    override val daysShort = listOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
+    override val weekdaysRange = "Mon–Fri"
+    override val weekendShort = "Sat, Sun"
+    override val everyDay = "Every day"
+    override val once = "Once"
+    override fun dur(days: Long, hours: Long, minutes: Long) = when {
+        days > 0 -> "${days}d ${hours}h"
+        hours > 0 -> "${hours}h ${minutes}m"
+        else -> "$minutes min"
+    }
+    override val lessThanMinute = "in under a minute"
+    override fun inTime(dur: String) = "in $dur"
+    override val justNow = "just now"
+    override fun minAgo(m: Long) = "$m min ago"
+    override fun hoursAgo(h: Long) = "${h}h ago"
+    override val today = "Today"
+    override val tomorrow = "Tomorrow"
+    override val dayMonthPattern = "MMMM d"
+
+    override val ruleAfterTitle = "After the all-clear"
+    override val ruleAfterHint = "waits out alerts"
+    override val ruleAfterDesc = "Stays quiet during an alert and wakes you once it's over"
+    override val ruleSkipTitle = "Don't wake me"
+    override val ruleSkipHint = "silent during alerts"
+    override val ruleSkipDesc = "If there's an alert at that time, it skips today"
+    override val ruleAlwaysTitle = "Always wake me"
+    override val ruleAlwaysHint = "rings even during alerts"
+    override val ruleAlwaysDesc = "A regular alarm that ignores alerts"
+
+    override val newAlarm = "New alarm"
+    override val editAlarm = "Alarm"
+    override val daysLabel = "DAYS"
+    override val presetWeekdays = "Weekdays"
+    override val presetWeekend = "Weekend"
+    override val presetEveryDay = "Every day"
+    override val presetOnce = "Once"
+    override val ifAlertLabel = "DURING AN ALERT"
+    override val save = "Save"
+    override val deleteAlarm = "Delete alarm"
+    override val soundLabel = "SOUND"
+    override val soundDefault = "Phone's alarm sound"
+    override val soundVibrationOnly = "Vibration only"
+    override val soundFromPhone = "Phone sounds"
+    override val soundFromFile = "Your own file"
+    override val soundPickTitle = "Alarm sound"
+    override val preview = "Play"
+    override val stop = "Stop"
+    override val gradual = "Gentle wake-up"
+    override val gradualOn = "starts quiet and gets loud over 30 seconds"
+    override val gradualOff = "full volume right away"
+    override val vibration = "Vibration"
+    override val soundFileGone = "The sound file is gone, the phone's alarm sound will play instead"
+
+    override val yourOblast = "Your oblast"
+    override val regionDistrict = "District"
+    override val regionCommunity = "Community"
+    override val regionOblastSub = "The alarm follows alerts here"
+    override val regionNow = "NOW"
+    override val searchOblast = "Find an oblast"
+    override val searchDistrict = "Find a district"
+    override val searchCommunity = "Find a community"
+    override val wholeOblast = "Whole oblast"
+    override val wholeOblastHint = "an alert in any district counts"
+    override val wholeDistrict = "Whole district"
+    override val wholeDistrictHint = "an alert in any community of the district counts"
+    override val loadingDistricts = "Loading districts…"
+    override fun loadFailed(e: String) = "Couldn't load districts: $e"
+    override val retry = "Try again"
+    override val back = "Back"
+
+    override val newsTitle = "News"
+    override val noChannels = "no channels"
+    override fun updatedAgo(ago: String) = "updated $ago"
+    override val refresh = "Refresh"
+    override val filterAlerts = "Alerts"
+    override val filterAll = "All"
+    override val loading = "Loading…"
+    override val emptyAlerts = "Nothing about alerts yet"
+    override val emptyAll = "Nothing here yet"
+    override val addChannelsHint = "Add channels on the More tab"
+
+    override val moreTitle = "More"
+    override val secAppearance = "LOOK"
+    override val themeLabel = "Theme"
+    override val digitsLabel = "Digits"
+    override fun digitName(id: String) = when (id) {
+        "thin" -> "Thin"
+        "bold" -> "Bold"
+        else -> "Elegant"
+    }
+    override fun themeName(id: String) = when (id) {
+        "graphite" -> "Graphite"
+        "ocean" -> "Ocean"
+        "light" -> "Light"
+        else -> "Night"
+    }
+    override val secAlert = "DURING AN ALERT"
+    override val whenAfterClear = "When to ring after the all-clear"
+    override val immediately = "right away"
+    override fun afterMin(n: Int) = "after $n min"
+    override val economyTitle = "Battery saver"
+    override val economyOn = "While waiting for the all-clear, checks once a minute. The alarm may be up to a minute late."
+    override val economyOff = "While waiting for the all-clear, checks every 20 seconds."
+    override val maxWait = "Wait for the all-clear at most"
+    override fun hours(n: Int) = "$n h"
+    override val maxWaitHint = "If the alert is still on when this time is up, I'll wake you anyway."
+    override val neighborsTitle = "Alerts in nearby districts"
+    override val neighborsHint = "count for the alarm too"
+    override fun sourcesHint(backup: String) =
+        "Alert data comes from siren.pp.ua, and from $backup if that's down. If neither responds, I'll wake you just in case."
+    override val secAlarm = "ALARM"
+    override val snoozeFor = "Snooze for"
+    override fun minutes(n: Int) = "$n min"
+    override val secWeather = "WEATHER"
+    override val weatherToggle = "Weather and what to wear"
+    override val weatherToggleHint = "on the main screen and when the alarm rings"
+    override val secChannels = "TELEGRAM CHANNELS"
+    override val channelPlaceholder = "@channel or t.me/… link"
+    override val add = "Add"
+    override val errPrivate = "Private channels (links with “+”) can't be read, only public ones"
+    override val errNotChannel = "That doesn't look like a channel name"
+    override val errExists = "This channel is already on the list"
+    override val channelsHint = "Public channels only. If a channel can't be read, you'll see it on the News tab."
+    override fun deleteChannel(ch: String) = "Remove @$ch"
+    override val secReady = "READY CHECK"
+    override val allSet = "All set, the alarm will go off on time"
+    override val allow = "Allow"
+    override val done = "Done"
+    override val vendorHint = "On Xiaomi, Samsung, Huawei and Honor, also turn on Autostart and remove background limits for bylarik in the app settings."
+    override val openAppSettings = "App settings"
+    override fun permTitle(key: String) = when (key) {
+        "notif" -> "Notifications"
+        "exact" -> "Exact time"
+        "fsi" -> "Full-screen alarm"
+        else -> "No battery restrictions"
+    }
+    override fun permHint(key: String) = when (key) {
+        "notif" -> "so the alarm shows up with Dismiss and Snooze buttons"
+        "exact" -> "so the alarm rings on the dot"
+        "fsi" -> "so the alarm screen appears over the lock screen"
+        else -> "so the phone doesn't pause the wait for the all-clear at night"
+    }
+    override val secTest = "TEST"
+    override val testButton = "Test alarm in one minute"
+    override fun testToast(t: String) = "It'll ring at $t. You can lock the screen."
+    override val testHint = "The test behaves like a real alarm set to “After the all-clear”: during an alert it waits, otherwise it rings right away."
+    override val secVersion = "VERSION"
+    override val checking = "Checking…"
+    override val upToDate = "You're on the latest version"
+    override val checkUpdates = "Check for updates"
+    override fun updatesFrom(repo: String) = "Updates come from github.com/$repo"
+    override val updateLabel = "UPDATE"
+    override fun updateAvailable(v: String) = "Version $v is out"
+    override fun downloading(p: Int) = "Downloading… $p%"
+    override val openingInstaller = "Opening the installer…"
+    override val needInstallPermission = "Allow bylarik to install apps (settings will open), then come back and tap again."
+    override val updateButton = "Update"
+    override val tryAgain = "Try again"
+    override val settingsKept = "Your alarms and settings stay as they are."
+    override fun updErrCheck(m: String) = "Couldn't check for updates: $m"
+    override val updErrNoReleases = "no releases yet"
+    override fun updErrHttp(c: Int) = "GitHub returned $c"
+    override val updErrBadFile = "unreadable version file"
+    override val updErrOff = "Auto-update is off in this build"
+    override fun updErrDownload(m: String) = "Download failed: $m"
+    override fun updErrInstall(m: String) = "Install failed: $m"
+    override val updErrCorrupt = "the file got damaged while downloading, please try again"
+    override val updErrSignature = "this version is signed with a different key. Uninstall bylarik and install the new version manually."
+    override val updErrInstaller = "Android didn't show the install screen"
+    override fun updErrNotInstalled(m: String) = "Not installed: $m"
+    override val secLog = "LOG"
+    override val logEmpty = "Nothing yet"
+    override val deleteApp = "Uninstall app"
+    override val deleteAppHint = "Removes your alarms and settings too"
+    override val deleteConfirmTitle = "Uninstall bylarik?"
+    override val deleteConfirmText = "Your alarms, settings and log will be gone. Android will ask you to confirm once more."
+    override val cancel = "Cancel"
+    override val delete = "Uninstall"
+    override fun footer(version: String) = "bylarik $version. Whether to wake you is decided by official alert data. Telegram is for information only."
+
+    override val timeToGetUp = "TIME TO GET UP"
+    override fun alarmLabel(label: String) = "Alarm $label"
+    override val dismiss = "Dismiss"
+    override fun snoozeBtn(n: Int) = "Snooze $n min"
+    override val testWord = "Test"
+
+    override val chRing = "Alarm"
+    override val chRingDesc = "Ringing alarm"
+    override val chWait = "Waiting for the all-clear"
+    override val chWaitDesc = "The alarm is waiting for an alert to end"
+    override val chInfo = "Messages"
+    override val chInfoDesc = "Skipped and snoozed alarms, updates"
+    override val nChecking = "Checking for alerts…"
+    override fun nCheckingFor(label: String) = "Alarm $label: checking for alerts…"
+    override fun nWaitTitle(label: String) = "Air alert. Alarm $label is waiting for the all-clear"
+    override fun nWaitClear(clear: String, ring: String) = "All-clear at $clear. Ringing at $ring"
+    override fun nNotLater(t: String) = "No later than $t"
+    override fun nSkippedTitle(label: String) = "Alarm $label didn't ring"
+    override fun nSkippedText(place: String) = if (place.isBlank()) "There was an alert. Keep sleeping." else "There was an alert in $place. Keep sleeping."
+    override val nSnoozedTitle = "Alarm snoozed"
+    override fun nSnoozedText(t: String) = "It'll ring at $t"
+    override fun nTimeoutTitle(label: String) = "Alarm $label rang for 10 minutes"
+    override val nTimeoutText = "Nobody turned it off, so it stopped on its own."
+    override fun nUpdateTitle(v: String) = "bylarik $v is out"
+    override val nUpdateText = "Open the app and tap Update. Your alarms and settings stay as they are."
+
+    override val rNoAlert = "No alert. Time to get up."
+    override val rTestNoAlert = "Test: there's no alert, so the alarm rings."
+    override fun rUnknown(why: String) = "Couldn't check for alerts ($why). Waking you just in case."
+    override val rAlways = "This alarm rings even during alerts."
+    override fun rClear(t: String) = "All-clear at $t. Time to get up."
+    override val rDeadline = "The alert is still on, but it's too late to wait any longer."
+    override val rSnoozed = "Snoozed alarm"
+    override val rWakeNow = "Wake me now"
+
+    override val lDeleted = "A deleted or disabled alarm fired, skipping"
+    override fun lAlreadyRinging(l: String) = "$l: another alarm is already ringing"
+    override fun lAlreadyWaiting(l: String) = "$l: already waiting for the all-clear for another alarm"
+    override fun lSkip(l: String) = "$l: alert, not waking (rule “Don't wake me”)"
+    override fun lWait(l: String, t: String) = "$l: alert, waiting for the all-clear (until $t at most)"
+    override fun lClear(l: String, t: String) = "$l: all-clear, ringing at $t"
+    override fun lAlertAgain(l: String) = "$l: alert again, still waiting"
+    override fun lResume(l: String) = "$l: still waiting for the all-clear"
+    override fun lCancelled(l: String) = "$l: wait cancelled, no alarm today"
+    override fun lRing(l: String, r: String) = "$l: ringing. $r"
+    override fun lAutoStop(l: String) = "$l: rang for 10 minutes and stopped"
+    override fun lDismissed(l: String) = "$l: dismissed"
+    override fun lSnoozed(l: String, t: String) = "$l: snoozed until $t"
+    override fun lServiceError(e: String) = "Service error: $e"
+    override fun lStartFail(e: String) = "Couldn't start the check: $e"
+    override fun lBackup(l: String, source: String) = "$l: main source didn't answer, using the backup ($source)"
+    override val lNoSound = "No alarm sound found, vibration only"
+    override fun lTest(t: String) = "Test: alarm at $t"
+    override fun lUpdAvailable(v: String) = "Version $v is out"
+    override val lUpdInstalling = "Installing the update…"
+    override val lUpdInstalled = "Update installed"
+    override fun lUpdFailed(m: String) = "Update not installed: $m"
+
+    override val eNoInternet = "no internet"
+    override val eTimeout = "the server didn't answer"
+    override val eNoConnection = "can't reach the server"
+    override val eSsl = "secure connection error"
+    override val eBadResponse = "unreadable server response"
+    override fun eGeneric(name: String) = "error $name"
+    override val eNoPlace = "no place selected"
+    override val eBusy = "the server is overloaded"
+    override fun eCode(c: Int) = "the server returned $c"
+    override val eRegionsEmpty = "the region list is empty"
+    override fun eBackup(m: String) = "backup source: $m"
+    override fun eBackupUnknown(name: String) = "the backup source doesn't know “$name”"
+    override val tgPrivate = "private channels can't be read, only public ones"
+    override val tgNoChannel = "no channel given"
+    override fun tgCode(c: Int) = "Telegram returned $c"
+    override val tgNoPosts = "no posts: the channel is private or doesn't exist"
+
+    override fun weatherTitle(city: String) = "WEATHER · $city"
+    override fun feels(t: String) = "feels like $t"
+    override fun precip(p: Int) = "rain $p%"
+    override fun wind(v: Int) = "wind $v m/s"
+    override fun weatherCode(c: Int) = when (c) {
+        0 -> "Clear"
+        1 -> "Mostly clear"
+        2 -> "Partly cloudy"
+        3 -> "Overcast"
+        45, 48 -> "Fog"
+        51, 53, 55 -> "Drizzle"
+        56, 57, 66, 67 -> "Freezing rain"
+        61, 63, 80, 81 -> "Rain"
+        65, 82 -> "Heavy rain"
+        71, 73, 77, 85 -> "Snow"
+        75, 86 -> "Heavy snow"
+        95, 96, 99 -> "Thunderstorm"
+        else -> "Weather"
+    }
+    override val wearTitle = "What to wear"
+    override fun wearBand(band: Int) = when (band) {
+        0 -> "Down coat, warm trousers, hat, scarf and mittens"
+        1 -> "Winter jacket, hat and gloves"
+        2 -> "Warm jacket and a hat"
+        3 -> "Jacket and a sweater or hoodie"
+        4 -> "Light jacket or windbreaker"
+        5 -> "Sweatshirt or long sleeves, it may get cool in the evening"
+        6 -> "T-shirt and something light"
+        else -> "As light as possible, a cap and some water"
+    }
+    override val wearUmbrella = "take an umbrella"
+    override val wearWaterproof = "waterproof shoes"
+    override val wearWind = "it's windy, a hood will help"
+    override val wearSun = "strong sun, use sunscreen"
+    override val wearLayers = "the morning is much colder than the day, dress in layers"
+    override val weatherLoading = "Loading the weather…"
+    override val weatherFailed = "Weather isn't available right now"
+
+    private val oblastsEn = mapOf(
+        4 to "Vinnytsia Oblast", 8 to "Volyn Oblast", 9 to "Dnipropetrovsk Oblast", 28 to "Donetsk Oblast",
+        10 to "Zhytomyr Oblast", 11 to "Zakarpattia Oblast", 12 to "Zaporizhzhia Oblast", 13 to "Ivano-Frankivsk Oblast",
+        31 to "Kyiv", 14 to "Kyiv Oblast", 15 to "Kirovohrad Oblast", 16 to "Luhansk Oblast", 27 to "Lviv Oblast",
+        17 to "Mykolaiv Oblast", 18 to "Odesa Oblast", 19 to "Poltava Oblast", 5 to "Rivne Oblast", 20 to "Sumy Oblast",
+        21 to "Ternopil Oblast", 22 to "Kharkiv Oblast", 23 to "Kherson Oblast", 3 to "Khmelnytskyi Oblast",
+        24 to "Cherkasy Oblast", 26 to "Chernivtsi Oblast", 25 to "Chernihiv Oblast",
+    )
+
+    override fun oblastName(id: Int, ukName: String): String = oblastsEn[id] ?: translit(ukName)
+
+    override fun shortPlace(name: String): String {
+        val n = name.trim()
+        return when {
+            n.endsWith(" область") -> translit(n.removeSuffix(" область")) + " Oblast"
+            n.endsWith(" район") -> translit(n.removeSuffix(" район")) + " raion"
+            n.contains("територіальна громада") -> translit(n.replace("територіальна громада", "").trim()) + " hromada"
+            n.endsWith(" громада") -> translit(n.removeSuffix(" громада")) + " hromada"
+            else -> translit(n)
+        }
+    }
+
+    override fun cityName(ukCity: String, enCity: String): String = enCity
+
+    /** Официальная транслитерация украинского (КМУ 2010). */
+    fun translit(s: String): String {
+        val sb = StringBuilder()
+        var wordStart = true
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            val lower = c.lowercaseChar()
+            val upper = c.isUpperCase()
+            val out: String = when (lower) {
+                'а' -> "a"; 'б' -> "b"; 'в' -> "v"
+                'г' -> if (s.getOrNull(i - 1)?.lowercaseChar() == 'з') "gh" else "h"
+                'ґ' -> "g"; 'д' -> "d"; 'е' -> "e"
+                'є' -> if (wordStart) "ye" else "ie"
+                'ж' -> "zh"; 'з' -> "z"; 'и' -> "y"; 'і' -> "i"
+                'ї' -> if (wordStart) "yi" else "i"
+                'й' -> if (wordStart) "y" else "i"
+                'к' -> "k"; 'л' -> "l"; 'м' -> "m"; 'н' -> "n"; 'о' -> "o"; 'п' -> "p"; 'р' -> "r"
+                'с' -> "s"; 'т' -> "t"; 'у' -> "u"; 'ф' -> "f"; 'х' -> "kh"; 'ц' -> "ts"; 'ч' -> "ch"
+                'ш' -> "sh"; 'щ' -> "shch"
+                'ь', '\'', '’', 'ʼ' -> ""
+                'ю' -> if (wordStart) "yu" else "iu"
+                'я' -> if (wordStart) "ya" else "ia"
+                else -> c.toString()
+            }
+            sb.append(if (upper && out.isNotEmpty()) out.replaceFirstChar { it.uppercaseChar() } else out)
+            wordStart = !c.isLetter() && c != '\'' && c != '’' && c != 'ʼ'
+            i++
+        }
+        return sb.toString()
+    }
+}

@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import ua.otboi.app.data.Reading
 import ua.otboi.app.data.Status
+import ua.otboi.app.i18n.T
 
 /**
  * Запасной источник тревог: карта vadimklimenko.com (без ключа).
@@ -19,12 +20,12 @@ object BackupApi {
         try {
             val res = Http.get(URL, "Otboi-Android/1.0", "application/json")
             if (res.code != 200) {
-                Reading(Status.UNKNOWN, "запасной источник ответил ${res.code}")
+                Reading(Status.UNKNOWN, T.eBackup(T.eCode(res.code)))
             } else {
                 evaluate(res.body, stateName, districtName)
             }
         } catch (e: Exception) {
-            Reading(Status.UNKNOWN, "запасной источник: " + Http.shortError(e))
+            Reading(Status.UNKNOWN, T.eBackup(Http.shortError(e)))
         }
     }
 
@@ -39,9 +40,9 @@ object BackupApi {
      */
     fun evaluate(body: String, stateName: String, districtName: String?): Reading {
         val states = JSONObject(body).optJSONObject("states")
-            ?: return Reading(Status.UNKNOWN, "запасной источник: непонятный ответ")
+            ?: return Reading(Status.UNKNOWN, T.eBackup(T.eBadResponse))
         val key = states.keys().asSequence().firstOrNull { norm(it) == norm(stateName) }
-            ?: return Reading(Status.UNKNOWN, "запасной источник не знает «$stateName»")
+            ?: return Reading(Status.UNKNOWN, T.eBackupUnknown(stateName))
         val st = states.getJSONObject(key)
         if (st.optBoolean("enabled")) {
             return Reading(Status.ALERT, backup = true, since = parseTime(st.optString("enabled_at")))
@@ -69,7 +70,7 @@ object BackupApi {
             on.containsKey(mine) -> Reading(Status.ALERT, backup = true, since = on[mine] ?: 0L)
             on.isEmpty() -> Reading(Status.CLEAR, backup = true)
             // Тревога где-то в области, а своего района в списке нет — не угадываем.
-            mine !in all -> Reading(Status.UNKNOWN, "запасной источник не знает «$districtName»")
+            mine !in all -> Reading(Status.UNKNOWN, T.eBackupUnknown(districtName))
             else -> Reading(Status.PARTIAL, backup = true, since = sinceOf(on.values))
         }
     }

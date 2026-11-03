@@ -33,12 +33,12 @@ object Http {
     }
 
     fun shortError(e: Throwable): String = when (e) {
-        is UnknownHostException -> "нет интернета или сервер не найден"
-        is SocketTimeoutException -> "сервер не ответил"
-        is ConnectException -> "нет связи с сервером"
-        is SSLException -> "ошибка защищённого соединения"
-        is org.json.JSONException -> "непонятный ответ сервера"
-        else -> "ошибка: " + e.javaClass.simpleName
+        is UnknownHostException -> ua.otboi.app.i18n.T.eNoInternet
+        is SocketTimeoutException -> ua.otboi.app.i18n.T.eTimeout
+        is ConnectException -> ua.otboi.app.i18n.T.eNoConnection
+        is SSLException -> ua.otboi.app.i18n.T.eSsl
+        is org.json.JSONException -> ua.otboi.app.i18n.T.eBadResponse
+        else -> ua.otboi.app.i18n.T.eGeneric(e.javaClass.simpleName)
     }
 }
 

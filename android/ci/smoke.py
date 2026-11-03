@@ -6,11 +6,10 @@
 что приложение не падает. Затем ставит тестовый будильник, блокирует экран
 и смотрит, что будильник сработал (или ждёт отбоя, если сейчас тревога).
 
-Если передать третьим аргументом прошлую версию APK, сначала проверяется
-автообновление: ставится прошлая версия, в «Ещё» нажимается «Обновить»,
-и новая версия должна встать поверх.
-
-Использование: smoke.py <apk> <папка для скриншотов> [прошлая версия apk]
+Режимы:
+  smoke.py check  <apk> <папка>          — полная проверка новой версии (до выпуска)
+  smoke.py update <прошлая apk> <папка>  — проверка автообновления (после выпуска):
+      ставится прошлая версия, в «Ещё» нажимается «Обновить», должна встать свежая из релиза.
 """
 import os
 import re
@@ -20,8 +19,7 @@ import time
 import xml.etree.ElementTree as ET
 
 PKG = "ua.otboi.app"
-APK, OUT = sys.argv[1], sys.argv[2]
-PREV = sys.argv[3] if len(sys.argv) > 3 and os.path.exists(sys.argv[3]) else None
+MODE, APK, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 os.makedirs(OUT, exist_ok=True)
 LOG = open(os.path.join(OUT, "summary.txt"), "w", encoding="utf-8")
 problems = []
@@ -187,25 +185,233 @@ def notif_text():
     return " | ".join(keep)
 
 
+
 def version():
     m = re.search(r"versionName=(\S+)", shell(f"dumpsys package {PKG}").stdout)
     return m.group(1) if m else ""
 
 
-def update_test():
-    """Ставим прошлую версию и обновляемся из приложения до свежей (из релиза)."""
-    r = adb("install", "-r", PREV, timeout=300)
+def set_lang(tag):
+    """Язык приложения (как «Язык приложения» в настройках Android 13+)."""
+    shell(f"cmd locale set-app-locales {PKG} --locales {tag}")
+    shell(f"am force-stop {PKG}")
+    time.sleep(1)
+    shell(f"am start -W -n {PKG}/.ui.MainActivity")
+    time.sleep(6)
+    clear_dialogs()
+    log(f"язык приложения: {tag}")
+
+
+def open_tab(name):
+    return tap(name, exact=True, wait=3)
+
+
+def settle():
+    shell("settings put system screen_off_timeout 600000")
+    log("жду, пока система успокоится после загрузки")
+    time.sleep(40)
+    shell("input keyevent KEYCODE_WAKEUP")
+    shell("wm dismiss-keyguard")
+    shell("input keyevent KEYCODE_HOME")
+    time.sleep(5)
+    clear_dialogs()
+
+
+def prepare():
+    global W, H
+    adb("wait-for-device")
+    W, H = screen_size()
+    log(f"экран {W}x{H}")
+    adb("root")
+    time.sleep(3)
+    adb("wait-for-device")
+    shell("setprop persist.sys.timezone Europe/Kiev")
+    shell("service call alarm 3 s16 Europe/Kiev")
+    log("время на эмуляторе: " + shell("date").stdout.strip())
+    settle()
+
+
+def grant():
+    shell(f"pm grant {PKG} android.permission.POST_NOTIFICATIONS")
+    shell(f"cmd deviceidle whitelist +{PKG}")
+    shell(f"appops set {PKG} USE_FULL_SCREEN_INTENT allow")
+    shell(f"appops set {PKG} REQUEST_INSTALL_PACKAGES allow")
+
+
+def test_alarm(button, wake_label, dismiss_label, prefix):
+    """Тестовый будильник при выключенном экране: звонит, или ждёт отбоя (если сейчас тревога)."""
+    p = scroll_to(button)
+    if not p:
+        problems.append(f"нет кнопки «{button}»")
+        return
+    shell(f"input tap {p[0]} {p[1]}")
+    log("поставил тестовый будильник")
+    time.sleep(2)
+    shell("input keyevent KEYCODE_HOME")
+    time.sleep(1)
+    shell("input keyevent KEYCODE_SLEEP")
+    rang = False
+    for _ in range(26):
+        time.sleep(5)
+        if ringing():
+            rang = True
+            break
+    time.sleep(3)
+    log("уведомление: " + notif_text())
+    if rang:
+        log("БУДИЛЬНИК ЗВОНИТ поверх блокировки")
+        shot(f"{prefix}_zvonit")
+        tap(dismiss_label, exact=True, wait=3)
+        return
+    n = notif_text()
+    shell("input keyevent KEYCODE_WAKEUP")
+    shell("wm dismiss-keyguard")
+    time.sleep(2)
+    shell(f"am start -n {PKG}/.ui.MainActivity")
+    time.sleep(5)
+    if "отбо" in n.lower() or "all-clear" in n.lower() or "відбо" in n.lower():
+        log("сейчас тревога — будильник правильно ждёт отбоя")
+        shot(f"{prefix}_zhdyot_otboya")
+        p2 = scroll_to(wake_label)
+        if p2:
+            shell(f"input tap {p2[0]} {p2[1]}")
+        for _ in range(6):
+            time.sleep(2)
+            if ringing():
+                break
+        if ringing():
+            shot(f"{prefix}_zvonit")
+            tap(dismiss_label, exact=True, wait=3)
+        else:
+            problems.append("кнопка «разбудить сейчас» не включила звонок")
+    else:
+        problems.append("тестовый будильник не сработал")
+
+
+def check_mode():
+    r = adb("install", "-r", APK, timeout=300)
+    log("установка: " + (r.stdout + r.stderr).strip().splitlines()[-1])
     if "Success" not in r.stdout:
-        log("прошлая версия не встала (" + (r.stdout + r.stderr).strip()[-120:] + ") — пропускаю проверку обновления")
+        problems.append("APK не установился")
+        return
+    log("версия: " + version())
+    grant()
+    adb("logcat", "-c")
+    adb("logcat", "-b", "crash", "-c")
+
+    # 1. Русский: первый запуск, выбор места, главный экран.
+    set_lang("ru-RU")
+    shot("01_ru_pervyi_zapusk")
+    if not check("первый запуск") or not alive():
+        problems.append("после запуска процесса нет")
+        return
+    tap("Вінницька обл.", wait=6)
+    tap("Вінницький р-н", wait=3)
+    tap("Весь район", wait=6)
+    check("выбор места")
+    # Включаем будильник 07:30, чтобы на главном экране был следующий подъём.
+    p = find("Будильник 07:30", exact=True)
+    if p:
+        shell(f"input tap {p[0]} {p[1]}")
+        time.sleep(3)
+    else:
+        log("НЕ НАШЁЛ переключатель будильника 07:30")
+    time.sleep(6)  # погода
+    shot("02_ru_glavnyi")
+    log("на главном экране: " + " / ".join(texts()[:30]))
+    if not any("ПОГОДА" in t for t in texts()):
+        problems.append("нет карточки погоды")
+
+    # 2. Редактор: звук.
+    tap("Пн–Пт", wait=3)
+    shot("03_ru_redaktor")
+    if scroll_to("Плавно нарастает"):
+        shot("04_ru_zvuk")
+    else:
+        problems.append("нет раздела звука в редакторе")
+    p = find("Послушать", exact=True)
+    if p:
+        shell(f"input tap {p[0]} {p[1]}")
+        time.sleep(2)
+        check("прослушивание мелодии")
+        p = find("Стоп", exact=True)
+        if p:
+            shell(f"input tap {p[0]} {p[1]}")
+    shell("input keyevent KEYCODE_BACK")
+    time.sleep(2)
+    check("редактор")
+
+    # 3. Новости и «Ещё».
+    open_tab("Новости")
+    time.sleep(5)
+    shot("05_ru_novosti")
+    open_tab("Ещё")
+    shot("06_ru_eshche")
+    if scroll_to("Тема"):
+        shot("07_ru_temy")
+    for theme, name in (("Светлая", "light"), ("Графит", "graphite"), ("Океан", "ocean"), ("Ночь", "night")):
+        open_tab("Ещё")
+        p = scroll_to(theme)
+        if not p:
+            problems.append(f"нет темы «{theme}»")
+            continue
+        shell(f"input tap {p[0]} {p[1]}")
+        time.sleep(2)
+        open_tab("Будильники")
+        time.sleep(2)
+        shot(f"08_tema_{name}")
+    check("темы")
+    open_tab("Ещё")
+    if scroll_to("Удалить приложение"):
+        shot("09_ru_udalit")
+    else:
+        problems.append("нет кнопки удаления")
+    check("ещё")
+
+    # 4. Тестовый будильник (русский).
+    open_tab("Ещё")
+    test_alarm("Тестовый будильник через минуту", "Разбудить сейчас", "Выключить", "10_ru")
+    check("тестовый будильник")
+
+    # 5. Украинский и английский: главный экран и «Ещё».
+    set_lang("uk-UA")
+    shot("11_uk_glavnyi")
+    open_tab("Ще")
+    shot("12_uk_shche")
+    check("украинский")
+    set_lang("en-US")
+    open_tab("Alarms")
+    time.sleep(3)
+    shot("13_en_main")
+    tap("Mon–Fri", wait=3)
+    shot("14_en_editor")
+    if scroll_to("Gentle wake-up"):
+        shot("15_en_sound")
+    shell("input keyevent KEYCODE_BACK")
+    time.sleep(2)
+    open_tab("More")
+    shot("16_en_more")
+    if scroll_to("Theme"):
+        shot("17_en_themes")
+    open_tab("Place")
+    shot("18_en_place")
+    open_tab("More")
+    test_alarm("Test alarm in one minute", "Wake me now", "Dismiss", "19_en")
+    check("английский")
+    shot("20_konets")
+
+
+def update_mode():
+    """Прошлая версия находит обновление в релизе и ставит его поверх."""
+    r = adb("install", "-r", APK, timeout=300)
+    if "Success" not in r.stdout:
+        problems.append("прошлая версия не встала: " + (r.stdout + r.stderr).strip()[-120:])
         return
     old = version()
     log(f"ОБНОВЛЕНИЕ: стоит прошлая версия {old}")
-    shell(f"pm grant {PKG} android.permission.POST_NOTIFICATIONS")
-    shell(f"appops set {PKG} REQUEST_INSTALL_PACKAGES allow")
-    shell(f"am start -W -n {PKG}/.ui.MainActivity")
-    time.sleep(8)
-    clear_dialogs()
-    if not tap("Ещё", exact=True, wait=3):
+    grant()
+    set_lang("ru-RU")
+    if not open_tab("Ещё"):
         problems.append("обновление: не открылась вкладка «Ещё»")
         return
     p = scroll_to("Проверить обновления")
@@ -214,8 +420,8 @@ def update_test():
         return
     shell(f"input tap {p[0]} {p[1]}")
     time.sleep(8)
-    p = scroll_to("Доступна версия")
-    shot("u1_dostupno_obnovlenie")
+    p = scroll_to("Вышла версия") or scroll_to("Доступна версия")
+    shot("u1_dostupno")
     if not p:
         problems.append(f"обновление: {old} не увидела новую версию")
         log("на экране: " + " / ".join(texts()[-20:]))
@@ -233,146 +439,18 @@ def update_test():
     log(f"ОБНОВЛЕНИЕ: было {old}, стало {new}")
     if not new or new == old:
         problems.append(f"обновление не установилось (осталась {old})")
-    check("автообновление")
-    shell(f"pm clear {PKG}")
-
-
-def main():
-    global W, H
-    adb("wait-for-device")
-    W, H = screen_size()
-    log(f"экран {W}x{H}")
-    # Время как в Украине.
-    adb("root")
-    time.sleep(3)
-    adb("wait-for-device")
-    shell("setprop persist.sys.timezone Europe/Kiev")
-    shell("service call alarm 3 s16 Europe/Kiev")
-    log("время на эмуляторе: " + shell("date").stdout.strip())
-
-    shell("settings put system screen_off_timeout 600000")
-    log("жду, пока система успокоится после загрузки")
-    time.sleep(40)
-    shell("input keyevent KEYCODE_WAKEUP")
-    shell("wm dismiss-keyguard")
-    shell("input keyevent KEYCODE_HOME")
-    time.sleep(5)
-    clear_dialogs()
-
-    if PREV:
-        update_test()
-    else:
-        log("прошлой версии нет — проверку автообновления пропускаю")
-
-    r = adb("install", "-r", APK, timeout=300)
-    log("установка: " + (r.stdout + r.stderr).strip().splitlines()[-1])
-    if "Success" not in r.stdout:
-        problems.append("APK не установился")
-        return
-    ver = re.search(r"versionName=(\S+)", shell(f"dumpsys package {PKG}").stdout)
-    log("версия: " + (ver.group(1) if ver else "?"))
-
-    shell(f"pm grant {PKG} android.permission.POST_NOTIFICATIONS")
-    shell(f"cmd deviceidle whitelist +{PKG}")
-    shell(f"appops set {PKG} USE_FULL_SCREEN_INTENT allow")
-    shell("settings put system screen_off_timeout 600000")
-    adb("logcat", "-c")
-    adb("logcat", "-b", "crash", "-c")
-
-    # 1. Первый запуск — должен открыть выбор области.
-    shell("input keyevent KEYCODE_WAKEUP")
-    shell("wm dismiss-keyguard")
     shell(f"am start -W -n {PKG}/.ui.MainActivity")
-    time.sleep(8)
-    clear_dialogs()
-    shot("01_pervyi_zapusk")
-    if not check("первый запуск") or not alive():
-        problems.append("после запуска процесса нет")
-        return
-
-    # 2. Область → район → весь район.
-    tap("Вінницька обл.", wait=6)
-    shot("02_rayony")
-    tap("Вінницький р-н", wait=3)
-    shot("03_gromady")
-    tap("Весь район", wait=6)
-    check("выбор места")
-    shot("04_glavnyi_ekran")
-    log("на главном экране: " + " / ".join(texts()[:25]))
-
-    # 3. Вкладки.
-    tap("Новости", exact=True, wait=8)
-    shot("05_novosti")
-    check("новости")
-    tap("Ещё", exact=True, wait=3)
-    shot("06_eshche")
-    check("ещё")
-
-    if scroll_to("Экономия заряда"):
-        shot("06b_ekonomiya")
-    else:
-        problems.append("нет переключателя «Экономия заряда»")
-
-    # 4. Тестовый будильник при заблокированном экране.
-    p = scroll_to("Тестовый будильник через 1 минуту")
-    if not p:
-        problems.append("не нашёл кнопку теста")
-        return
-    shell(f"input tap {p[0]} {p[1]}")
-    log("поставил тестовый будильник")
-    time.sleep(2)
-    shot("07_test_postavlen")
-    shell("input keyevent KEYCODE_HOME")
-    time.sleep(1)
-    shell("input keyevent KEYCODE_SLEEP")
-    log("экран выключен, жду срабатывания")
-    rang = False
-    for _ in range(26):  # до ~130 с
-        time.sleep(5)
-        if ringing():
-            rang = True
-            break
-    time.sleep(3)
-    log("уведомление: " + notif_text())
-    if rang:
-        log("БУДИЛЬНИК ЗВОНИТ — экран будильника поверх блокировки")
-        shot("08_zvonit")
-        tap("Выключить", exact=True, wait=3)
-        shot("09_vyklyuchen")
-    else:
-        # Возможно, сейчас тревога и будильник ждёт отбоя — это тоже правильно.
-        n = notif_text()
-        shell("input keyevent KEYCODE_WAKEUP")
-        shell("wm dismiss-keyguard")
-        time.sleep(2)
-        shell(f"am start -n {PKG}/.ui.MainActivity")
-        time.sleep(5)
-        shot("08_posle_testa")
-        if "ждёт отбоя" in n or "ждёт отбоя" in " ".join(texts()):
-            log("сейчас тревога — будильник правильно ждёт отбоя")
-            tap("Будильники", exact=True, wait=3)
-            shot("09_zhdyot_otboya")
-            p2 = scroll_to("Разбудить сейчас")
-            if p2:
-                shell(f"input tap {p2[0]} {p2[1]}")
-                log("нажал «Разбудить сейчас»")
-            for _ in range(6):
-                time.sleep(2)
-                if ringing():
-                    break
-            if ringing():
-                shot("10_zvonit_po_knopke")
-                tap("Выключить", exact=True, wait=3)
-            else:
-                problems.append("кнопка «Разбудить сейчас» не включила звонок")
-        else:
-            problems.append("тестовый будильник не сработал")
-    check("тестовый будильник")
-    shot("11_konets")
+    time.sleep(6)
+    shot("u3_posle")
+    check("после обновления")
 
 
 try:
-    main()
+    prepare()
+    if MODE == "update":
+        update_mode()
+    else:
+        check_mode()
 except Exception as e:  # noqa: BLE001
     problems.append(f"скрипт проверки: {e!r}")
     log(f"ошибка скрипта: {e!r}")

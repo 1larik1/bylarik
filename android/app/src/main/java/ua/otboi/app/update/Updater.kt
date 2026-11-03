@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import ua.otboi.app.data.Store
+import ua.otboi.app.i18n.T
 import ua.otboi.app.net.Http
 import java.io.File
 import java.net.HttpURLConnection
@@ -38,9 +39,10 @@ data class UpdateInfo(
 object Updater {
     /** Публичный репозиторий с релизами — тот, где собрано приложение. */
     val REPO: String = ua.otboi.app.BuildConfig.UPDATE_REPO
-    private val BASE = "https://github.com/$REPO/releases/download/android-latest/"
+    /** Последний релиз репозитория (с 1.3.0 — версии v1.3.0, v1.4.0 …). */
+    private val BASE = "https://github.com/$REPO/releases/latest/download/"
     private val VERSION_URL = BASE + "version.json"
-    private val APK_URL = BASE + "Otboi.apk"
+    private val APK_URL = BASE + "bylarik.apk"
     private const val CHECK_EVERY_MS = 60L * 60 * 1000
     const val ACTION_STATUS = "ua.otboi.app.update.STATUS"
 
@@ -84,7 +86,7 @@ object Updater {
             return@withLock
         }
         if (REPO.isBlank()) {
-            state.value = State.Failed("Автообновление выключено в этой сборке")
+            state.value = State.Failed(T.updErrOff)
             return@withLock
         }
         state.value = State.Checking
@@ -93,8 +95,8 @@ object Updater {
                 val res = Http.get("$VERSION_URL?t=$now", "Otboi-Android", "application/json")
                 when (res.code) {
                     200 -> parse(res.body)
-                    404 -> Result.failure(Exception("релизов пока нет"))
-                    else -> Result.failure(Exception("GitHub ответил ${res.code}"))
+                    404 -> Result.failure(Exception(T.updErrNoReleases))
+                    else -> Result.failure(Exception(T.updErrHttp(res.code)))
                 }
             } catch (e: Exception) {
                 Result.failure(Exception(Http.shortError(e)))
@@ -103,9 +105,9 @@ object Updater {
         result.onSuccess { info ->
             p.edit().putLong("checkedAt", now).putString("latest", infoJson(info)).apply()
             state.value = if (info.versionCode > currentVersionCode(ctx)) State.Available(info) else State.UpToDate
-            if (info.versionCode > currentVersionCode(ctx)) Store.addLog("Доступно обновление ${info.versionName}")
+            if (info.versionCode > currentVersionCode(ctx)) Store.addLog(T.lUpdAvailable(info.versionName))
         }.onFailure {
-            state.value = State.Failed("Не удалось проверить обновления: ${it.message}")
+            state.value = State.Failed(T.updErrCheck(it.message ?: ""))
         }
     }
 
@@ -122,8 +124,8 @@ object Updater {
             p.edit().putLong("notifiedCode", st.info.versionCode).apply()
             ua.otboi.app.alarm.Notifs.info(
                 ctx,
-                "Доступно обновление bylarik ${st.info.versionName}",
-                "Открой приложение и нажми «Обновить» — будильники и настройки сохранятся.",
+                T.nUpdateTitle(st.info.versionName),
+                T.nUpdateText,
             )
         } catch (_: Exception) {
         }
@@ -141,12 +143,16 @@ object Updater {
             UpdateInfo(
                 versionCode = code,
                 versionName = o.optString("versionName", code.toString()),
-                notes = o.optString("notes", ""),
+                notes = when (val n = o.opt("notes")) {
+                    is JSONObject -> n.optString(T.code).ifBlank { n.optString("en") }
+                    is String -> n
+                    else -> ""
+                },
                 sha256 = o.optString("sha256", "").lowercase(),
             )
         )
     } catch (e: Exception) {
-        Result.failure(Exception("непонятный ответ (version.json)"))
+        Result.failure(Exception(T.updErrBadFile))
     }
 
     private fun infoJson(i: UpdateInfo): String = JSONObject()
@@ -182,12 +188,12 @@ object Updater {
         val file = File(ctx.cacheDir, "update.apk")
         val downloaded = withContext(Dispatchers.IO) { download(file, info) }
         if (downloaded != null) {
-            state.value = State.Failed("Не удалось скачать: $downloaded", info)
+            state.value = State.Failed(T.updErrDownload(downloaded), info)
             return
         }
         state.value = State.Installing(info)
         val err = withContext(Dispatchers.IO) { startSession(ctx, file) }
-        if (err != null) state.value = State.Failed("Не удалось установить: $err", info)
+        if (err != null) state.value = State.Failed(T.updErrInstall(err), info)
     }
 
     /** null — всё хорошо, иначе текст ошибки. */
@@ -212,7 +218,7 @@ object Updater {
             break
         }
         if (conn.responseCode != 200) {
-            "сервер ответил ${conn.responseCode}"
+            T.eCode(conn.responseCode)
         } else {
             val total = conn.contentLengthLong
             val md = MessageDigest.getInstance("SHA-256")
@@ -241,7 +247,7 @@ object Updater {
             val hash = md.digest().joinToString("") { "%02x".format(it) }
             if (info.sha256.isNotBlank() && hash != info.sha256) {
                 file.delete()
-                "файл повреждён (контрольная сумма не совпала) — попробуй ещё раз"
+                T.updErrCorrupt
             } else {
                 null
             }
@@ -269,7 +275,7 @@ object Updater {
             val pending = PendingIntent.getBroadcast(ctx, 77, intent, flags)
             session.commit(pending.intentSender)
         }
-        Store.addLog("Ставлю обновление…")
+        Store.addLog(T.lUpdInstalling)
         null
     } catch (e: Exception) {
         e.message ?: e.javaClass.simpleName
@@ -293,25 +299,25 @@ class UpdateReceiver : BroadcastReceiver() {
                     try {
                         context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     } catch (e: Exception) {
-                        Updater.state.value = Updater.State.Failed("Android не показал окно установки", info)
+                        Updater.state.value = Updater.State.Failed(T.updErrInstaller, info)
                     }
                 }
             }
-            PackageInstaller.STATUS_SUCCESS -> Store.addLog("Обновление установлено")
+            PackageInstaller.STATUS_SUCCESS -> Store.addLog(T.lUpdInstalled)
             PackageInstaller.STATUS_FAILURE_ABORTED -> {
                 Updater.state.value = info?.let { Updater.State.Available(it) } ?: Updater.State.Idle
             }
             else -> {
-                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "код $status"
+                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: status.toString()
                 val hint = if (status == PackageInstaller.STATUS_FAILURE_CONFLICT ||
                     status == PackageInstaller.STATUS_FAILURE_INCOMPATIBLE
                 ) {
-                    " — эта версия подписана другим ключом: удали «bylarik» и поставь новую версию вручную"
+                    ". " + T.updErrSignature
                 } else {
                     ""
                 }
-                Store.addLog("Обновление не установилось: $msg")
-                Updater.state.value = Updater.State.Failed("Не установилось: $msg$hint", info)
+                Store.addLog(T.lUpdFailed(msg))
+                Updater.state.value = Updater.State.Failed(T.updErrNotInstalled(msg + hint), info)
             }
         }
     }

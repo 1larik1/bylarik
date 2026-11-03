@@ -28,6 +28,9 @@ object Store {
     private val _log = MutableStateFlow<List<LogEntry>>(emptyList())
     val log: StateFlow<List<LogEntry>> = _log.asStateFlow()
 
+    private val _weather = MutableStateFlow<WeatherData?>(null)
+    val weather: StateFlow<WeatherData?> = _weather.asStateFlow()
+
     @Synchronized
     fun init(context: Context) {
         if (::prefs.isInitialized) return
@@ -36,6 +39,7 @@ object Store {
         _waiting.value = runCatching { parseWaiting(prefs.getString("waiting", null)) }.getOrNull()
         _reading.value = runCatching { parseReading(prefs.getString("reading", null)) }.getOrNull()
         _log.value = runCatching { parseLog(prefs.getString("log", null)) }.getOrDefault(emptyList())
+        _weather.value = runCatching { parseWeather(prefs.getString("weather", null)) }.getOrNull()
         if (prefs.contains("alarms")) {
             _alarms.value = runCatching { parseAlarms(prefs.getString("alarms", null)) }.getOrDefault(emptyList())
         } else {
@@ -88,6 +92,16 @@ object Store {
         e.apply()
     }
 
+    // MARK: погода
+
+    @Synchronized
+    fun setWeather(w: WeatherData?) {
+        _weather.value = w
+        val e = prefs.edit()
+        if (w == null) e.remove("weather") else e.putString("weather", weatherJson(w))
+        e.apply()
+    }
+
     // MARK: журнал
 
     @Synchronized
@@ -111,6 +125,8 @@ object Store {
                 JSONObject()
                     .put("id", a.id).put("h", a.hour).put("m", a.minute)
                     .put("days", days).put("on", a.enabled).put("rule", a.rule.id)
+                    .put("snd", a.sound.uri).put("sndName", a.sound.name)
+                    .put("grad", a.sound.gradual).put("vib", a.sound.vibrate).put("file", a.sound.file)
             )
         }
         return arr.toString()
@@ -132,6 +148,13 @@ object Store {
                 days = days.filter { it in 1..7 }.toSet(),
                 enabled = o.optBoolean("on", true),
                 rule = AlertRule.from(o.optString("rule")),
+                sound = Sound(
+                    uri = o.optString("snd", ""),
+                    name = o.optString("sndName", ""),
+                    gradual = o.optBoolean("grad", true),
+                    vibrate = o.optBoolean("vib", true),
+                    file = o.optBoolean("file", false),
+                ),
             )
         }
         return out
@@ -143,9 +166,10 @@ object Store {
         return JSONObject()
             .put("stateId", s.stateId).put("districtId", s.districtId).put("communityId", s.communityId)
             .put("placeShort", s.placeShort).put("placeFull", s.placeFull)
+            .put("districtName", s.districtName).put("communityName", s.communityName)
             .put("neighborsCount", s.neighborsCount)
             .put("delay", s.delayAfterClearMin).put("maxWait", s.maxWaitHours).put("snooze", s.snoozeMin)
-            .put("digits", s.digitStyle).put("accent", s.accent)
+            .put("digits", s.digitStyle).put("theme", s.themeId).put("weather", s.weather)
             .put("channels", ch).put("alertsOnly", s.alertsOnly)
             .put("economy", s.economy)
             .put("v", SETTINGS_VERSION)
@@ -165,6 +189,8 @@ object Store {
             communityId = o.optInt("communityId", d.communityId),
             placeShort = o.optString("placeShort", d.placeShort),
             placeFull = o.optString("placeFull", d.placeFull),
+            districtName = o.optString("districtName", d.districtName),
+            communityName = o.optString("communityName", d.communityName),
             neighborsCount = o.optBoolean("neighborsCount", d.neighborsCount),
             // До версии 2 по умолчанию было «через 10 мин после отбоя», теперь — сразу.
             delayAfterClearMin = o.optInt("delay", d.delayAfterClearMin)
@@ -172,7 +198,8 @@ object Store {
             maxWaitHours = o.optInt("maxWait", d.maxWaitHours),
             snoozeMin = o.optInt("snooze", d.snoozeMin),
             digitStyle = o.optString("digits", d.digitStyle),
-            accent = o.optLong("accent", d.accent),
+            themeId = o.optString("theme", d.themeId),
+            weather = o.optBoolean("weather", d.weather),
             channels = if (chArr == null) d.channels else channels,
             alertsOnly = o.optBoolean("alertsOnly", d.alertsOnly),
             economy = o.optBoolean("economy", d.economy),
@@ -207,6 +234,23 @@ object Store {
         val o = JSONObject(text)
         val status = runCatching { Status.valueOf(o.optString("status")) }.getOrDefault(Status.UNKNOWN)
         return Reading(status, o.optString("reason"), o.optLong("at"), o.optLong("since"), o.optBoolean("backup"))
+    }
+
+    private fun weatherJson(w: WeatherData): String = JSONObject()
+        .put("at", w.at).put("state", w.stateId).put("t", w.temp).put("f", w.feels).put("c", w.code)
+        .put("w", w.wind).put("min", w.min).put("max", w.max).put("p", w.precipProb).put("uv", w.uvMax)
+        .put("wmax", w.windMax).put("mf", w.morningFeels).put("df", w.dayFeels).put("dc", w.dayCode)
+        .toString()
+
+    private fun parseWeather(text: String?): WeatherData? {
+        if (text.isNullOrBlank()) return null
+        val o = JSONObject(text)
+        return WeatherData(
+            at = o.optLong("at"), stateId = o.optInt("state"), temp = o.optDouble("t"), feels = o.optDouble("f"),
+            code = o.optInt("c"), wind = o.optDouble("w"), min = o.optDouble("min"), max = o.optDouble("max"),
+            precipProb = o.optInt("p"), uvMax = o.optDouble("uv"), windMax = o.optDouble("wmax"),
+            morningFeels = o.optDouble("mf"), dayFeels = o.optDouble("df"), dayCode = o.optInt("dc"),
+        )
     }
 
     private fun parseLog(text: String?): List<LogEntry> {

@@ -13,10 +13,11 @@ import ua.otboi.app.data.Fmt
 import ua.otboi.app.data.Reading
 import ua.otboi.app.data.Store
 import ua.otboi.app.data.Waiting
+import ua.otboi.app.i18n.T
 import ua.otboi.app.ui.MainActivity
 import ua.otboi.app.ui.RingActivity
 
-data class RingInfo(val label: String, val reason: String, val startedAt: Long)
+data class RingInfo(val label: String, val reason: String, val startedAt: Long, val alarmId: Long = 0L)
 
 /** Что сейчас звонит — экран будильника следит за этим. */
 object RingState {
@@ -30,23 +31,23 @@ object Notifs {
 
     fun createChannels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
-        val ring = NotificationChannel(CH_RING, "Будильник", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "Звонящий будильник"
+        val ring = NotificationChannel(CH_RING, T.chRing, NotificationManager.IMPORTANCE_HIGH).apply {
+            description = T.chRingDesc
             setSound(null, null)
             enableVibration(false)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
-        val wait = NotificationChannel(CH_WAIT, "Ожидание отбоя", NotificationManager.IMPORTANCE_LOW).apply {
-            description = "Будильник ждёт отбоя тревоги"
+        val wait = NotificationChannel(CH_WAIT, T.chWait, NotificationManager.IMPORTANCE_LOW).apply {
+            description = T.chWaitDesc
             setShowBadge(false)
         }
-        val info = NotificationChannel(CH_INFO, "Сообщения", NotificationManager.IMPORTANCE_DEFAULT).apply {
-            description = "Пропущенные и отложенные будильники"
+        val info = NotificationChannel(CH_INFO, T.chInfo, NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = T.chInfoDesc
         }
         nm.createNotificationChannels(listOf(ring, wait, info))
     }
 
-    private fun accent(): Int = Store.settings.value.accent.toInt()
+    private fun accent(): Int = ua.otboi.app.ui.Palettes.byId(Store.settings.value.themeId).accent.toInt()
 
     private fun openApp(ctx: Context): PendingIntent = PendingIntent.getActivity(
         ctx, 100,
@@ -68,11 +69,12 @@ object Notifs {
     fun waiting(ctx: Context, w: Waiting, s: AppSettings, r: Reading?): Notification {
         val ringAt = if (w.clearSince > 0L) w.clearSince + s.delayAfterClearMin * 60_000L else 0L
         val title = if (ringAt > 0L) {
-            "Отбой в ${Fmt.hm(w.clearSince)} — разбужу в ${Fmt.hm(ringAt)}"
+            T.nWaitClear(Fmt.hm(w.clearSince), Fmt.hm(ringAt))
         } else {
-            "Тревога — будильник ${w.title} ждёт отбоя"
+            T.nWaitTitle(w.title)
         }
-        val text = "Не позже ${Fmt.hm(w.deadline)}" + if (s.placeShort.isNotBlank()) " · ${s.placeShort}" else ""
+        val place = ua.otboi.app.data.Places.shortName(s)
+        val text = T.nNotLater(Fmt.hm(w.deadline)) + if (place.isNotBlank()) " · $place" else ""
         val b = NotificationCompat.Builder(ctx, CH_WAIT)
             .setSmallIcon(R.drawable.ic_notif)
             .setColor(accent())
@@ -83,8 +85,8 @@ object Notifs {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openApp(ctx))
-            .addAction(0, "Разбудить сейчас", WakeService.pending(ctx, WakeService.ACTION_RING, 201))
-            .addAction(0, "Не будить сегодня", WakeService.pending(ctx, WakeService.ACTION_STOP_WAIT, 202))
+            .addAction(0, T.wakeNow, WakeService.pending(ctx, WakeService.ACTION_RING, 201))
+            .addAction(0, T.notToday, WakeService.pending(ctx, WakeService.ACTION_STOP_WAIT, 202))
         val since = r?.since ?: 0L
         if (ringAt == 0L && since > 0L) {
             b.setWhen(since).setShowWhen(true).setUsesChronometer(true)
@@ -101,7 +103,7 @@ object Notifs {
         return NotificationCompat.Builder(ctx, CH_RING)
             .setSmallIcon(R.drawable.ic_notif)
             .setColor(accent())
-            .setContentTitle("Будильник ${info.label}")
+            .setContentTitle(T.alarmLabel(info.label))
             .setContentText(info.reason)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -110,8 +112,8 @@ object Notifs {
             .setAutoCancel(false)
             .setFullScreenIntent(full, true)
             .setContentIntent(full)
-            .addAction(0, "Выключить", WakeService.pending(ctx, WakeService.ACTION_DISMISS, 301))
-            .addAction(0, "Отложить $snoozeMin мин", WakeService.pending(ctx, WakeService.ACTION_SNOOZE, 302))
+            .addAction(0, T.dismiss, WakeService.pending(ctx, WakeService.ACTION_DISMISS, 301))
+            .addAction(0, T.snoozeBtn(snoozeMin), WakeService.pending(ctx, WakeService.ACTION_SNOOZE, 302))
             .build()
     }
 

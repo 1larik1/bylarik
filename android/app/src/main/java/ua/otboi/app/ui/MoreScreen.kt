@@ -1,6 +1,8 @@
 package ua.otboi.app.ui
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -13,7 +15,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,9 +29,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import ua.otboi.app.alarm.Scheduler
+import ua.otboi.app.alarm.WakeService
 import ua.otboi.app.data.Feed
 import ua.otboi.app.data.Fmt
 import ua.otboi.app.data.Store
+import ua.otboi.app.i18n.T
+import ua.otboi.app.net.BackupApi
 import ua.otboi.app.net.Telegram
 
 @Composable
@@ -39,6 +46,7 @@ fun MoreScreen() {
     val accent = LocalAccent.current
     val tick = rememberResumeTick()
     var refresh by remember { mutableIntStateOf(0) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val perms = remember(tick, refresh) { Perms.items(ctx) }
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         refresh++
@@ -53,49 +61,58 @@ fun MoreScreen() {
             .padding(top = 12.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Txt("Ещё", 26.sp, C.Text, FontWeight.Bold)
+        Txt(T.moreTitle, 26.sp, C.Text, FontWeight.Bold)
 
         // Готовность
-        SectionLabel("ГОТОВНОСТЬ", Modifier.padding(top = 6.dp))
-        perms.forEach { p ->
-            CardBox(
-                onClick = if (p.ok) null else ({
-                    if (p.key == "notif" && Build.VERSION.SDK_INT >= 33) {
-                        notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else {
-                        Perms.open(ctx, p.key)
-                    }
-                }),
-                border = if (p.ok) C.StrokeDim else C.Stroke,
-            ) {
+        SectionLabel(T.secReady, Modifier.padding(top = 6.dp))
+        val missing = perms.filter { !it.ok }
+        if (missing.isEmpty()) {
+            CardBox(background = C.MintBg, border = C.MintBg) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Txt(p.title, 15.sp, C.Text, FontWeight.SemiBold)
-                        Txt(p.hint, 12.sp, C.Text3, lineHeight = 16.sp)
+                    Box(Modifier.size(28.dp).clip(CircleShape).background(C.Mint), contentAlignment = Alignment.Center) {
+                        Icon(Ic.check, T.done, tint = C.MintBg, modifier = Modifier.size(16.dp))
                     }
-                    Spacer(Modifier.width(10.dp))
-                    if (p.ok) {
-                        Box(Modifier.size(28.dp).clip(CircleShape).background(C.MintBg), contentAlignment = Alignment.Center) {
-                            Icon(Ic.check, "Готово", tint = C.Mint, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Txt(T.allSet, 14.sp, C.MintText, FontWeight.SemiBold)
+                }
+            }
+        } else {
+            missing.forEach { p ->
+                CardBox(
+                    onClick = {
+                        if (p.key == "notif" && Build.VERSION.SDK_INT >= 33) {
+                            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            Perms.open(ctx, p.key)
                         }
-                    } else {
-                        Box(
-                            Modifier.clip(RoundedCornerShape(16.dp)).background(accent).padding(horizontal = 12.dp, vertical = 7.dp)
-                        ) {
-                            Txt("Разрешить", 13.sp, Color.White, FontWeight.SemiBold)
+                    },
+                    border = C.Stroke,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Txt(p.title, 15.sp, C.Text, FontWeight.SemiBold)
+                            Txt(p.hint, 12.sp, C.Text3, lineHeight = 16.sp)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Box(Modifier.clip(RoundedCornerShape(16.dp)).background(accent).padding(horizontal = 12.dp, vertical = 7.dp)) {
+                            Txt(T.allow, 13.sp, C.OnAccent, FontWeight.SemiBold)
                         }
                     }
                 }
             }
         }
-        Txt(
-            "На Xiaomi, Samsung, Huawei и Honor ещё включи «Автозапуск» и сними ограничения фоновой работы для «bylarik» в настройках приложения.",
-            12.sp, C.Text3, lineHeight = 16.sp,
-        )
-        OutlineButton("Открыть настройки приложения", height = 46.dp) { Perms.open(ctx, "app") }
+        Txt(T.vendorHint, 12.sp, C.Text3, lineHeight = 16.sp)
+        OutlineButton(T.openAppSettings, height = 46.dp) { Perms.open(ctx, "app") }
 
-        // Цифры и цвет
-        SectionLabel("ЦИФРЫ", Modifier.padding(top = 10.dp))
+        // Внешний вид
+        SectionLabel(T.secAppearance, Modifier.padding(top = 10.dp))
+        Txt(T.themeLabel, 14.sp, C.Text2)
+        Palettes.all.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { p -> ThemeCard(p, p.id == s.themeId, Modifier.weight(1f)) { Store.updateSettings { it.copy(themeId = p.id) } } }
+            }
+        }
+        Txt(T.digitsLabel, 14.sp, C.Text2)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DigitStyle.entries.forEach { style ->
                 val sel = style.id == s.digitStyle
@@ -112,113 +129,141 @@ fun MoreScreen() {
                 ) {
                     ClockText("07:30", 30f * style.smallScale, style.small, style.smallWeight, C.Text, accent)
                     Spacer(Modifier.height(4.dp))
-                    Txt(style.title, 12.sp, if (sel) C.Text else C.Text3, FontWeight.SemiBold)
+                    Txt(T.digitName(style.id), 12.sp, if (sel) C.Text else C.Text3, FontWeight.SemiBold)
                 }
-            }
-        }
-        SectionLabel("ЦВЕТ", Modifier.padding(top = 10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            AccentOptions.forEach { argb ->
-                val sel = argb == s.accent
-                Box(
-                    Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .border(2.dp, if (sel) Color.White else Color.Transparent, CircleShape)
-                        .padding(5.dp)
-                        .clip(CircleShape)
-                        .background(Color(argb))
-                        .clickable { Store.updateSettings { it.copy(accent = argb) } }
-                )
             }
         }
 
-        // Тревога
-        SectionLabel("ЕСЛИ ТРЕВОГА", Modifier.padding(top = 10.dp))
-        Txt("Когда звонить после отбоя", 14.sp, C.Text2)
-        ChipRow(listOf(0, 5, 10, 15, 30), s.delayAfterClearMin, { if (it == 0) "сразу" else "через $it мин" }) { v ->
+        // Если тревога
+        SectionLabel(T.secAlert, Modifier.padding(top = 10.dp))
+        Txt(T.whenAfterClear, 14.sp, C.Text2)
+        ChipRow(listOf(0, 5, 10, 15, 30), s.delayAfterClearMin, { if (it == 0) T.immediately else T.afterMin(it) }) { v ->
             Store.updateSettings { it.copy(delayAfterClearMin = v) }
         }
-        CardBox {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Txt("Экономия заряда", 15.sp, C.Text, FontWeight.SemiBold)
-                    Txt(
-                        if (s.economy) {
-                            "пока жду отбоя, проверяю тревогу раз в минуту — звонок может опоздать до минуты"
-                        } else {
-                            "сейчас проверяю тревогу каждые 20 с — звоню почти сразу после отбоя"
-                        },
-                        12.sp, C.Text3, lineHeight = 16.sp,
-                    )
-                }
-                Spacer(Modifier.width(10.dp))
-                Toggle(s.economy) { v -> Store.updateSettings { it.copy(economy = v) } }
-            }
-        }
-        Txt("Ждать отбоя не дольше", 14.sp, C.Text2)
-        ChipRow(listOf(1, 2, 3, 4, 6, 8), s.maxWaitHours, { "$it ч" }) { v ->
+        Txt(T.maxWait, 14.sp, C.Text2)
+        ChipRow(listOf(1, 2, 3, 4, 6, 8), s.maxWaitHours, { T.hours(it) }) { v ->
             Store.updateSettings { it.copy(maxWaitHours = v) }
         }
-        Txt("Если тревога не закончится — разбужу всё равно, когда выйдет это время.", 12.sp, C.Text3, lineHeight = 16.sp)
-        Txt(
-            "Тревогу смотрю по siren.pp.ua. Если он не отвечает — по запасному ${ua.otboi.app.net.BackupApi.NAME} (по районам). " +
-                "Если не отвечают оба — бужу на всякий случай.",
-            12.sp, C.Text3, lineHeight = 16.sp,
-        )
+        Txt(T.maxWaitHint, 12.sp, C.Text3, lineHeight = 16.sp)
         if (s.districtId > 0) {
-            CardBox {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Txt("Тревога в соседних районах", 15.sp, C.Text, FontWeight.SemiBold)
-                        Txt("тоже считается тревогой для будильника", 12.sp, C.Text3)
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Toggle(s.neighborsCount) { v -> Store.updateSettings { it.copy(neighborsCount = v) } }
-                }
-            }
+            ToggleRow(T.neighborsTitle, T.neighborsHint, s.neighborsCount) { v -> Store.updateSettings { it.copy(neighborsCount = v) } }
         }
-        Txt("Отложить на", 14.sp, C.Text2)
-        ChipRow(listOf(5, 10, 15), s.snoozeMin, { "$it мин" }) { v ->
+        ToggleRow(T.economyTitle, if (s.economy) T.economyOn else T.economyOff, s.economy) { v ->
+            Store.updateSettings { it.copy(economy = v) }
+        }
+        Txt(T.sourcesHint(BackupApi.NAME), 12.sp, C.Text3, lineHeight = 16.sp)
+
+        // Будильник
+        SectionLabel(T.secAlarm, Modifier.padding(top = 10.dp))
+        Txt(T.snoozeFor, 14.sp, C.Text2)
+        ChipRow(listOf(5, 10, 15), s.snoozeMin, { T.minutes(it) }) { v ->
             Store.updateSettings { it.copy(snoozeMin = v) }
         }
 
+        // Погода
+        SectionLabel(T.secWeather, Modifier.padding(top = 10.dp))
+        ToggleRow(T.weatherToggle, T.weatherToggleHint, s.weather) { v -> Store.updateSettings { it.copy(weather = v) } }
+
         // Каналы
-        SectionLabel("TELEGRAM-КАНАЛЫ", Modifier.padding(top = 10.dp))
+        SectionLabel(T.secChannels, Modifier.padding(top = 10.dp))
         ChannelsEditor(s.channels) { scope.launch { Feed.refresh() } }
 
         // Проверка
-        SectionLabel("ПРОВЕРКА", Modifier.padding(top = 10.dp))
-        PrimaryButton("Тестовый будильник через 1 минуту") {
+        SectionLabel(T.secTest, Modifier.padding(top = 10.dp))
+        PrimaryButton(T.testButton) {
             val at = Scheduler.scheduleTest(ctx)
-            Store.addLog("Тест: будильник на ${Fmt.hm(at)}")
-            Toast.makeText(ctx, "Сработает в ${Fmt.hm(at)} — можно заблокировать экран", Toast.LENGTH_LONG).show()
+            Store.addLog(T.lTest(Fmt.hm(at)))
+            Toast.makeText(ctx, T.testToast(Fmt.hm(at)), Toast.LENGTH_LONG).show()
         }
-        Txt(
-            "Тест ведёт себя как настоящий будильник с правилом «После отбоя»: если сейчас тревога — не зазвонит и будет ждать отбоя, если тревоги нет — зазвонит.",
-            12.sp, C.Text3, lineHeight = 16.sp,
-        )
+        Txt(T.testHint, 12.sp, C.Text3, lineHeight = 16.sp)
 
-        // Журнал
         VersionSection()
 
-        SectionLabel("ЖУРНАЛ", Modifier.padding(top = 10.dp))
-        if (log.isEmpty()) Txt("Пока пусто", 13.sp, C.Text3)
-        log.take(20).forEach { e ->
+        // Журнал
+        SectionLabel(T.secLog, Modifier.padding(top = 10.dp))
+        if (log.isEmpty()) Txt(T.logEmpty, 13.sp, C.Text3)
+        log.take(15).forEach { e ->
             Row {
                 Txt(Fmt.dateTime(e.time), 12.sp, C.Text3, modifier = Modifier.width(92.dp))
                 Txt(e.text, 13.sp, C.Text2, lineHeight = 17.sp, modifier = Modifier.weight(1f))
             }
         }
 
+        // Удаление
+        Spacer(Modifier.height(10.dp))
+        OutlineButton(T.deleteApp, color = C.RedText, height = 48.dp) { confirmDelete = true }
+        Txt(T.deleteAppHint, 12.sp, C.Text3, modifier = Modifier.align(Alignment.CenterHorizontally))
+
         Spacer(Modifier.height(8.dp))
         val version = remember {
             runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""
         }
-        Txt(
-            "bylarik $version · будить или нет — решают официальные данные о тревоге (siren.pp.ua). Telegram — только для информации.",
-            12.sp, C.Muted, lineHeight = 16.sp,
+        Txt(T.footer(version), 12.sp, C.Muted, lineHeight = 16.sp)
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = C.Sheet,
+            title = { Txt(T.deleteConfirmTitle, 18.sp, C.Text, FontWeight.SemiBold) },
+            text = { Txt(T.deleteConfirmText, 14.sp, C.Text2, lineHeight = 19.sp) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    Scheduler.cancelAll(ctx)
+                    runCatching { ctx.stopService(Intent(ctx, WakeService::class.java)) }
+                    runCatching {
+                        ctx.startActivity(
+                            Intent(Intent.ACTION_DELETE, Uri.parse("package:" + ctx.packageName))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                }) { Txt(T.delete, 15.sp, C.RedText, FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Txt(T.cancel, 15.sp, C.Text2, FontWeight.SemiBold) }
+            },
         )
+    }
+}
+
+/** Карточка темы с маленьким превью. */
+@Composable
+private fun ThemeCard(p: Palette, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(18.dp)
+    val accent = Color(p.accent)
+    Column(
+        modifier
+            .clip(shape)
+            .background(C.Surface)
+            .border(if (selected) 2.dp else 1.dp, if (selected) LocalAccent.current else C.Stroke, shape)
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(p.bg))
+                .border(1.dp, Color(p.stroke), RoundedCornerShape(12.dp))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        ) {
+            Txt("07:30", 20.sp, Color(p.hero), FontWeight.SemiBold, modifier = Modifier.align(Alignment.TopStart))
+            Box(
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .size(46.dp, 6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color(p.track))
+            ) { Box(Modifier.fillMaxHeight().width(28.dp).background(accent)) }
+            Box(Modifier.align(Alignment.BottomEnd).size(18.dp).clip(CircleShape).background(accent))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Txt(T.themeName(p.id), 13.sp, if (selected) C.Text else C.Text2, FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            if (selected) Icon(Ic.check, null, tint = LocalAccent.current, modifier = Modifier.size(16.dp))
+        }
     }
 }
 
@@ -237,7 +282,7 @@ private fun ChannelsEditor(channels: List<String>, onChanged: () -> Unit) {
                     },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Ic.trash, "Удалить @$ch", tint = C.Text3, modifier = Modifier.size(20.dp))
+                    Icon(Ic.trash, T.deleteChannel(ch), tint = C.Text3, modifier = Modifier.size(20.dp))
                 }
             }
         }
@@ -246,7 +291,7 @@ private fun ChannelsEditor(channels: List<String>, onChanged: () -> Unit) {
         InputField(input, {
             input = it
             error = ""
-        }, "@канал или ссылка t.me/…", Modifier.weight(1f))
+        }, T.channelPlaceholder, Modifier.weight(1f))
         Spacer(Modifier.width(8.dp))
         val accent = LocalAccent.current
         Box(
@@ -257,9 +302,9 @@ private fun ChannelsEditor(channels: List<String>, onChanged: () -> Unit) {
                 .clickable {
                     val clean = Telegram.cleanChannel(input)
                     error = when {
-                        Telegram.isPrivateLink(input) -> "Закрытые каналы (ссылки с «+») читать нельзя — только публичные"
-                        clean.length < 4 -> "Не похоже на имя канала"
-                        channels.any { it.equals(clean, ignoreCase = true) } -> "Этот канал уже есть"
+                        Telegram.isPrivateLink(input) -> T.errPrivate
+                        clean.length < 4 -> T.errNotChannel
+                        channels.any { it.equals(clean, ignoreCase = true) } -> T.errExists
                         else -> ""
                     }
                     if (error.isEmpty()) {
@@ -271,9 +316,9 @@ private fun ChannelsEditor(channels: List<String>, onChanged: () -> Unit) {
                 .padding(horizontal = 18.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Txt("Добавить", 14.sp, Color.White, FontWeight.SemiBold)
+            Txt(T.add, 14.sp, C.OnAccent, FontWeight.SemiBold)
         }
     }
     if (error.isNotEmpty()) Txt(error, 12.sp, C.RedText)
-    Txt("Только публичные каналы. Ошибки чтения видно на вкладке «Новости».", 12.sp, C.Text3, lineHeight = 16.sp)
+    Txt(T.channelsHint, 12.sp, C.Text3, lineHeight = 16.sp)
 }

@@ -1,5 +1,6 @@
 package ua.otboi.app.ui
 
+import ua.otboi.app.i18n.T
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,19 +32,19 @@ fun NewsScreen() {
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Txt("Новости", 26.sp, C.Text, FontWeight.Bold)
-                val updated = if (Feed.loadedAt > 0L) " · обновлено " + Fmt.ago(Feed.loadedAt, now) else ""
+                Txt(T.newsTitle, 26.sp, C.Text, FontWeight.Bold)
+                val updated = if (Feed.loadedAt > 0L) " · " + T.updatedAgo(Fmt.ago(Feed.loadedAt, now)) else ""
                 Txt(
-                    (if (s.channels.isEmpty()) "каналов нет" else s.channels.joinToString(", ") { "@$it" }) + updated,
+                    (if (s.channels.isEmpty()) T.noChannels else s.channels.joinToString(", ") { "@$it" }) + updated,
                     13.sp, C.Text3, maxLines = 1,
                 )
             }
-            RoundIconButton(Ic.refresh, "Обновить", tint = if (loading) LocalAccent.current else C.Text2) {
+            RoundIconButton(Ic.refresh, T.refresh, tint = if (loading) LocalAccent.current else C.Text2) {
                 scope.launch { Feed.refresh() }
             }
         }
         Spacer(Modifier.height(14.dp))
-        ChipRow(listOf(true, false), s.alertsOnly, { if (it) "Про тревогу" else "Все новости" }) { v ->
+        ChipRow(listOf(true, false), s.alertsOnly, { if (it) T.filterAlerts else T.filterAll }) { v ->
             Store.updateSettings { it.copy(alertsOnly = v) }
         }
         errors.forEach { (ch, e) ->
@@ -60,10 +61,10 @@ fun NewsScreen() {
                 item(key = "empty") {
                     CardBox {
                         Txt(
-                            if (loading) "Загружаю…" else if (s.alertsOnly) "Новостей про тревогу пока нет" else "Новостей пока нет",
+                            if (loading) T.loading else if (s.alertsOnly) T.emptyAlerts else T.emptyAll,
                             15.sp, C.Text2,
                         )
-                        Txt("Каналы можно добавить во вкладке «Ещё»", 13.sp, C.Text3)
+                        Txt(T.addChannelsHint, 13.sp, C.Text3)
                     }
                 }
             }

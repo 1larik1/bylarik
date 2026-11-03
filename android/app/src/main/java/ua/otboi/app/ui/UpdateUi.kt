@@ -1,5 +1,6 @@
 package ua.otboi.app.ui
 
+import ua.otboi.app.i18n.T
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,9 +30,9 @@ fun UpdateCard(state: Updater.State, compact: Boolean) {
     } ?: return
 
     CardBox(background = C.Surface2, border = accent.copy(alpha = 0.55f), radius = 22.dp) {
-        Txt("ОБНОВЛЕНИЕ", 12.sp, C.PurpleLight, FontWeight.Bold, letterSpacing = 1.2.sp)
+        Txt(T.updateLabel, 12.sp, C.PurpleLight, FontWeight.Bold, letterSpacing = 1.2.sp)
         Spacer(Modifier.height(4.dp))
-        Txt("Доступна версия ${info.versionName}", 16.sp, C.Text, FontWeight.SemiBold)
+        Txt(T.updateAvailable(info.versionName), 16.sp, C.Text, FontWeight.SemiBold)
         if (!compact && info.notes.isNotBlank()) {
             Spacer(Modifier.height(4.dp))
             Txt(info.notes, 13.sp, C.Text2, lineHeight = 18.sp)
@@ -39,7 +40,7 @@ fun UpdateCard(state: Updater.State, compact: Boolean) {
         Spacer(Modifier.height(12.dp))
         when (state) {
             is Updater.State.Downloading -> {
-                Txt("Скачиваю… ${state.percent}%", 13.sp, C.Text2)
+                Txt(T.downloading(state.percent), 13.sp, C.Text2)
                 Spacer(Modifier.height(8.dp))
                 Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(C.Track)) {
                     Box(
@@ -51,25 +52,25 @@ fun UpdateCard(state: Updater.State, compact: Boolean) {
                     )
                 }
             }
-            is Updater.State.Installing -> Txt("Открываю установщик Android…", 13.sp, C.Text2)
+            is Updater.State.Installing -> Txt(T.openingInstaller, 13.sp, C.Text2)
             is Updater.State.NeedsPermission -> {
                 Txt(
-                    "Разреши «bylarik» устанавливать приложения (откроются настройки), потом вернись и нажми ещё раз.",
+                    T.needInstallPermission,
                     13.sp, C.Text2, lineHeight = 18.sp,
                 )
                 Spacer(Modifier.height(10.dp))
-                PrimaryButton("Обновить", height = 48.dp) { scope.launch { Updater.install(ctx, info) } }
+                PrimaryButton(T.updateButton, height = 48.dp) { scope.launch { Updater.install(ctx, info) } }
             }
             is Updater.State.Failed -> {
                 Txt(state.message, 13.sp, C.RedText, lineHeight = 18.sp)
                 Spacer(Modifier.height(10.dp))
-                PrimaryButton("Попробовать ещё раз", height = 48.dp) { scope.launch { Updater.install(ctx, info) } }
+                PrimaryButton(T.tryAgain, height = 48.dp) { scope.launch { Updater.install(ctx, info) } }
             }
             else -> {
-                PrimaryButton("Обновить", height = 48.dp) { scope.launch { Updater.install(ctx, info) } }
+                PrimaryButton(T.updateButton, height = 48.dp) { scope.launch { Updater.install(ctx, info) } }
                 if (!compact) {
                     Spacer(Modifier.height(6.dp))
-                    Txt("Настройки и будильники сохранятся.", 12.sp, C.Text3)
+                    Txt(T.settingsKept, 12.sp, C.Text3)
                 }
             }
         }
@@ -83,18 +84,18 @@ fun VersionSection() {
     val scope = rememberCoroutineScope()
     val state by Updater.state.collectAsState()
     val name = remember { Updater.currentVersionName(ctx) }
-    SectionLabel("ВЕРСИЯ", Modifier.padding(top = 10.dp))
+    SectionLabel(T.secVersion, Modifier.padding(top = 10.dp))
     Txt("bylarik $name", 15.sp, C.Text, FontWeight.SemiBold)
     val status = when (val s = state) {
-        is Updater.State.Checking -> "Проверяю…"
-        is Updater.State.UpToDate -> "Это последняя версия"
+        is Updater.State.Checking -> T.checking
+        is Updater.State.UpToDate -> T.upToDate
         is Updater.State.Failed -> if (s.info == null) s.message else ""
         else -> ""
     }
     if (status.isNotBlank()) Txt(status, 13.sp, if (state is Updater.State.Failed) C.RedText else C.Text3, lineHeight = 18.sp)
     UpdateCard(state, compact = false)
     if (state !is Updater.State.Downloading && state !is Updater.State.Installing) {
-        OutlineButton("Проверить обновления", height = 48.dp) { scope.launch { Updater.check(ctx, force = true) } }
+        OutlineButton(T.checkUpdates, height = 48.dp) { scope.launch { Updater.check(ctx, force = true) } }
     }
-    Txt("Обновления берутся из github.com/${Updater.REPO}", 12.sp, C.Text3)
+    Txt(T.updatesFrom(Updater.REPO), 12.sp, C.Text3)
 }
