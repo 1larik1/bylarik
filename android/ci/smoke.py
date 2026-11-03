@@ -6,7 +6,11 @@
 что приложение не падает. Затем ставит тестовый будильник, блокирует экран
 и смотрит, что будильник сработал (или ждёт отбоя, если сейчас тревога).
 
-Использование: smoke.py <путь к apk> <папка для скриншотов>
+Если передать третьим аргументом прошлую версию APK, сначала проверяется
+автообновление: ставится прошлая версия, в «Ещё» нажимается «Обновить»,
+и новая версия должна встать поверх.
+
+Использование: smoke.py <apk> <папка для скриншотов> [прошлая версия apk]
 """
 import os
 import re
@@ -17,6 +21,7 @@ import xml.etree.ElementTree as ET
 
 PKG = "ua.otboi.app"
 APK, OUT = sys.argv[1], sys.argv[2]
+PREV = sys.argv[3] if len(sys.argv) > 3 and os.path.exists(sys.argv[3]) else None
 os.makedirs(OUT, exist_ok=True)
 LOG = open(os.path.join(OUT, "summary.txt"), "w", encoding="utf-8")
 problems = []
@@ -182,6 +187,56 @@ def notif_text():
     return " | ".join(keep)
 
 
+def version():
+    m = re.search(r"versionName=(\S+)", shell(f"dumpsys package {PKG}").stdout)
+    return m.group(1) if m else ""
+
+
+def update_test():
+    """Ставим прошлую версию и обновляемся из приложения до свежей (из релиза)."""
+    r = adb("install", "-r", PREV, timeout=300)
+    if "Success" not in r.stdout:
+        log("прошлая версия не встала (" + (r.stdout + r.stderr).strip()[-120:] + ") — пропускаю проверку обновления")
+        return
+    old = version()
+    log(f"ОБНОВЛЕНИЕ: стоит прошлая версия {old}")
+    shell(f"pm grant {PKG} android.permission.POST_NOTIFICATIONS")
+    shell(f"appops set {PKG} REQUEST_INSTALL_PACKAGES allow")
+    shell(f"am start -W -n {PKG}/.ui.MainActivity")
+    time.sleep(8)
+    clear_dialogs()
+    if not tap("Ещё", exact=True, wait=3):
+        problems.append("обновление: не открылась вкладка «Ещё»")
+        return
+    p = scroll_to("Проверить обновления")
+    if not p:
+        problems.append("обновление: нет кнопки «Проверить обновления»")
+        return
+    shell(f"input tap {p[0]} {p[1]}")
+    time.sleep(8)
+    p = scroll_to("Доступна версия")
+    shot("u1_dostupno_obnovlenie")
+    if not p:
+        problems.append(f"обновление: {old} не увидела новую версию")
+        log("на экране: " + " / ".join(texts()[-20:]))
+        return
+    if not tap("Обновить", exact=True, wait=12):
+        problems.append("обновление: нет кнопки «Обновить»")
+        return
+    shot("u2_ustanovshchik")
+    log("окно установщика: " + " / ".join(texts()[:12]))
+    for label in ("Update", "Обновить", "Install", "Установить"):
+        if find(label, exact=True):
+            tap(label, exact=True, wait=20)
+            break
+    new = version()
+    log(f"ОБНОВЛЕНИЕ: было {old}, стало {new}")
+    if not new or new == old:
+        problems.append(f"обновление не установилось (осталась {old})")
+    check("автообновление")
+    shell(f"pm clear {PKG}")
+
+
 def main():
     global W, H
     adb("wait-for-device")
@@ -195,6 +250,20 @@ def main():
     shell("service call alarm 3 s16 Europe/Kiev")
     log("время на эмуляторе: " + shell("date").stdout.strip())
 
+    shell("settings put system screen_off_timeout 600000")
+    log("жду, пока система успокоится после загрузки")
+    time.sleep(40)
+    shell("input keyevent KEYCODE_WAKEUP")
+    shell("wm dismiss-keyguard")
+    shell("input keyevent KEYCODE_HOME")
+    time.sleep(5)
+    clear_dialogs()
+
+    if PREV:
+        update_test()
+    else:
+        log("прошлой версии нет — проверку автообновления пропускаю")
+
     r = adb("install", "-r", APK, timeout=300)
     log("установка: " + (r.stdout + r.stderr).strip().splitlines()[-1])
     if "Success" not in r.stdout:
@@ -207,13 +276,6 @@ def main():
     shell(f"cmd deviceidle whitelist +{PKG}")
     shell(f"appops set {PKG} USE_FULL_SCREEN_INTENT allow")
     shell("settings put system screen_off_timeout 600000")
-    log("жду, пока система успокоится после загрузки")
-    time.sleep(40)
-    shell("input keyevent KEYCODE_WAKEUP")
-    shell("wm dismiss-keyguard")
-    shell("input keyevent KEYCODE_HOME")
-    time.sleep(5)
-    clear_dialogs()
     adb("logcat", "-c")
     adb("logcat", "-b", "crash", "-c")
 
