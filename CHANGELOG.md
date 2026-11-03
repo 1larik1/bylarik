@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0
+
+- A home screen widget: the clock and date, your next alarm and the alert status. Tap the status to check right away; tap anywhere else to open the app. It refreshes on its own while you use the phone and does nothing while the screen is off. Add it from **More → Widget** or from the home screen's widget list. It follows the app's theme.
+- The main screen shows the current time and date at the top.
+- When a new version is out, the app asks right away when you open it, instead of leaving a card on the main screen. **Later** hides it for a few hours; the update stays in **More**, and a dot on the More tab reminds you.
+- Removed the line about where updates come from.
+
 ## 1.3.0
 
 - A sound for each alarm: a phone sound, your own audio file, or vibration only. You can preview it in the alarm editor.

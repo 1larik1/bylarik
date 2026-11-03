@@ -98,6 +98,7 @@ fun AppRoot() {
     var tab by rememberSaveable { mutableIntStateOf(if (Store.settings.value.stateId <= 0) 2 else 0) }
     var editing by remember { mutableStateOf<Alarm?>(null) }
     var editingNew by remember { mutableStateOf(false) }
+    val update by Updater.state.collectAsState()
 
     LaunchedEffect(s.stateId, s.districtId, s.communityId) {
         if (s.stateId > 0) {
@@ -129,16 +130,19 @@ fun AppRoot() {
                 else -> MoreScreen()
             }
         }
-        BottomNav(tab) { tab = it }
+        BottomNav(tab, badgeOnMore = Updater.infoOf(update) != null) { tab = it }
     }
 
     editing?.let { a ->
         AlarmEditor(a, editingNew) { editing = null }
     }
+
+    // Новая версия — предлагаем обновиться сразу при входе (но не посреди редактирования будильника).
+    UpdatePrompt(enabled = editing == null)
 }
 
 @Composable
-fun BottomNav(tab: Int, onTab: (Int) -> Unit) {
+fun BottomNav(tab: Int, badgeOnMore: Boolean = false, onTab: (Int) -> Unit) {
     val items = listOf(
         Ic.clock to T.tabAlarms,
         Ic.rss to T.tabNews,
@@ -166,6 +170,17 @@ fun BottomNav(tab: Int, onTab: (Int) -> Unit) {
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(icon, label, tint = if (sel) C.PurplePale else C.Text3, modifier = Modifier.size(20.dp))
+                        if (i == 3 && badgeOnMore) {
+                            // Точка «есть обновление» на вкладке «Ещё».
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(top = 3.dp, end = 13.dp)
+                                    .size(8.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(LocalAccent.current)
+                            )
+                        }
                     }
                     Spacer(Modifier.height(4.dp))
                     Txt(

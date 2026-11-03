@@ -321,10 +321,11 @@ fun InputField(value: String, onChange: (String) -> Unit, placeholder: String, m
     }
 }
 
-/** Текущее время, обновляется раз в минуту. */
+/** Текущее время: обновляется в начале каждой минуты и сразу, когда возвращаешься в приложение. */
 @Composable
 fun rememberNow(): Long {
-    val state = produceState(System.currentTimeMillis()) {
+    val resumed = rememberResumeTick()
+    val state = produceState(System.currentTimeMillis(), resumed) {
         while (true) {
             val n = System.currentTimeMillis()
             value = n

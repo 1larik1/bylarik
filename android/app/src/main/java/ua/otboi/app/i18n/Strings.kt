@@ -210,11 +210,15 @@ abstract class Strings {
     abstract val testButton: String
     abstract fun testToast(t: String): String
     abstract val testHint: String
+    abstract val secWidget: String
+    abstract val widgetHint: String
+    abstract val widgetAdd: String
+    abstract val widgetAdded: String
+    abstract val widgetManual: String
     abstract val secVersion: String
     abstract val checking: String
     abstract val upToDate: String
     abstract val checkUpdates: String
-    abstract fun updatesFrom(repo: String): String
     abstract val updateLabel: String
     abstract fun updateAvailable(v: String): String
     abstract fun downloading(p: Int): String
@@ -223,6 +227,8 @@ abstract class Strings {
     abstract val updateButton: String
     abstract val tryAgain: String
     abstract val settingsKept: String
+    abstract val updateLater: String
+    abstract val updateLaterHint: String
     abstract fun updErrCheck(m: String): String
     abstract val updErrNoReleases: String
     abstract fun updErrHttp(c: Int): String
@@ -305,6 +311,10 @@ abstract class Strings {
     abstract val lUpdInstalling: String
     abstract val lUpdInstalled: String
     abstract fun lUpdFailed(m: String): String
+
+    // Виджет
+    abstract val wWaiting: String
+    abstract val wPickPlace: String
 
     // Ошибки сети и источников
     abstract val eNoInternet: String

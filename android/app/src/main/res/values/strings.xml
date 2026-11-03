@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">bylarik</string>
+    <string name="widget_desc">Clock, next alarm and alert status</string>
+    <string name="widget_preview_status">● No alert</string>
+    <string name="widget_preview_day"> · Mon</string>
 </resources>

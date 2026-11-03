@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_desc">Часы, ближайший будильник и статус тревоги</string>
+    <string name="widget_preview_status">● Тревоги нет</string>
+    <string name="widget_preview_day"> · пн</string>
+</resources>

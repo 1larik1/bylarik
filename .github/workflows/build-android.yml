@@ -92,6 +92,14 @@ jobs:
           unzip -o -q bylarik.apk 'classes*.dex' -d dex
           grep -l -a "Lua/otboi/app/OtboiApp;" dex/*.dex
 
+      # Та же сборка, но с номером 1: на эмуляторе она «видит» в релизах версию новее,
+      # и так проверяется окно «Вышла версия …» при входе в приложение.
+      - name: Build a copy with an old build number (for the update window test)
+        run: |
+          set -o pipefail
+          gradle --no-daemon assembleRelease -PversionCodeOverride=1 --stacktrace 2>&1 | tail -5
+          cp app/build/outputs/apk/release/app-release.apk bylarik-old.apk
+
       - id: ver
         name: Version
         run: |
@@ -102,6 +110,11 @@ jobs:
         with:
           name: apk
           path: android/bylarik.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-old
+          path: android/bylarik-old.apk
 
       - name: Upload build log
         if: failure()
@@ -123,13 +136,18 @@ jobs:
           name: apk
           path: apk
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk-old
+          path: apk-old
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Install, walk through screens, test alarm
+      - name: Install, walk through screens, widget, update window, test alarm
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -138,7 +156,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: python3 android/ci/smoke.py check apk/bylarik.apk screens
+          script: python3 android/ci/smoke.py check apk/bylarik.apk screens apk-old/bylarik-old.apk
 
       - name: Upload screenshots
         if: always()

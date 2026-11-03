@@ -23,7 +23,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-/** Новая версия, найденная на GitHub. */
+/** Новая версия, найденная в релизах. */
 data class UpdateInfo(
     val versionCode: Long,
     val versionName: String,
@@ -73,6 +73,30 @@ object Updater {
     }
 
     private fun prefs(ctx: Context) = ctx.applicationContext.getSharedPreferences("otboi_update", Context.MODE_PRIVATE)
+
+    /** Сколько не спрашивать снова после «Позже». */
+    private const val LATER_MS = 3L * 60 * 60 * 1000
+
+    /** Новая версия из текущего состояния (если она есть). */
+    fun infoOf(s: State): UpdateInfo? = when (s) {
+        is State.Available -> s.info
+        is State.Downloading -> s.info
+        is State.Installing -> s.info
+        is State.NeedsPermission -> s.info
+        is State.Failed -> s.info
+        else -> null
+    }
+
+    /** Предлагать ли обновиться при входе: не спрашиваем, если недавно нажали «Позже» для этой же версии. */
+    fun shouldPrompt(ctx: Context, code: Long): Boolean {
+        val p = prefs(ctx)
+        return p.getLong("laterCode", 0L) != code ||
+            System.currentTimeMillis() - p.getLong("laterAt", 0L) > LATER_MS
+    }
+
+    fun postpone(ctx: Context, code: Long) {
+        prefs(ctx).edit().putLong("laterCode", code).putLong("laterAt", System.currentTimeMillis()).apply()
+    }
 
     /** Проверить, есть ли новая версия. force — не смотреть, когда проверяли в прошлый раз. */
     suspend fun check(ctx: Context, force: Boolean = false) = mutex.withLock {

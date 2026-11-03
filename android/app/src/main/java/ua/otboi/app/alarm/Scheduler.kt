@@ -47,6 +47,8 @@ object Scheduler {
         PendingIntent.getBroadcast(ctx, code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
     fun rescheduleAll(ctx: Context) {
+        // Ближайший будильник мог смениться (например, этот только что сработал).
+        ua.otboi.app.widget.Widgets.update(ctx)
         val am = ctx.getSystemService(AlarmManager::class.java) ?: return
         val n = next(Store.alarms.value, ZonedDateTime.now())
         if (n == null) {

@@ -36,6 +36,7 @@ import ua.otboi.app.data.Store
 import ua.otboi.app.i18n.T
 import ua.otboi.app.net.BackupApi
 import ua.otboi.app.net.Telegram
+import ua.otboi.app.widget.Widgets
 
 @Composable
 fun MoreScreen() {
@@ -132,6 +133,23 @@ fun MoreScreen() {
                     Txt(T.digitName(style.id), 12.sp, if (sel) C.Text else C.Text3, FontWeight.SemiBold)
                 }
             }
+        }
+
+        // Виджет
+        SectionLabel(T.secWidget, Modifier.padding(top = 10.dp))
+        Txt(T.widgetHint, 13.sp, C.Text2, lineHeight = 18.sp)
+        val hasWidget = remember(tick, refresh) { Widgets.hasAny(ctx) }
+        val canPin = remember { Widgets.canPin(ctx) }
+        when {
+            hasWidget -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Ic.check, null, tint = C.Mint, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Txt(T.widgetAdded, 14.sp, C.MintText, FontWeight.SemiBold)
+            }
+            canPin -> OutlineButton(T.widgetAdd, height = 48.dp) {
+                if (!Widgets.requestPin(ctx)) Toast.makeText(ctx, T.widgetManual, Toast.LENGTH_LONG).show()
+            }
+            else -> Txt(T.widgetManual, 12.sp, C.Text3, lineHeight = 16.sp)
         }
 
         // Если тревога

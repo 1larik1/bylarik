@@ -37,7 +37,6 @@ import ua.otboi.app.data.Wear
 import ua.otboi.app.i18n.T
 import ua.otboi.app.net.BackupApi
 import ua.otboi.app.net.Post
-import ua.otboi.app.update.Updater
 
 @Composable
 fun AlarmsScreen(
@@ -57,7 +56,6 @@ fun AlarmsScreen(
     val now = rememberNow()
     val tick = rememberResumeTick()
     val missing = remember(tick) { Perms.missing(ctx) }
-    val update by Updater.state.collectAsState()
     val alertPosts = posts.filter { it.isAlert }
     val w = waiting
 
@@ -72,6 +70,7 @@ fun AlarmsScreen(
                 .padding(top = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            NowHeader(now)
             Row(
                 Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -108,8 +107,6 @@ fun AlarmsScreen(
                     }
                 }
             }
-
-            UpdateCard(update, compact = true)
 
             if (w == null) {
                 Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -166,12 +163,27 @@ fun AlarmsScreen(
     }
 }
 
+/** Текущее время и дата вверху главного экрана. */
+@Composable
+private fun NowHeader(now: Long) {
+    val d = LocalDigits.current
+    val z = Fmt.zoned(now)
+    Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        ClockText(Fmt.hm(now), 44f * d.smallScale, d.small, d.smallWeight, C.Text, LocalAccent.current)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Txt(Fmt.weekday(z), 15.sp, C.Text, FontWeight.SemiBold, maxLines = 1)
+            Txt(Fmt.dayMonth(z), 13.sp, C.Text3, maxLines = 1)
+        }
+    }
+}
+
 @Composable
 private fun NextHero(alarms: List<Alarm>, reading: Reading?, s: AppSettings, now: Long) {
     val d = LocalDigits.current
     val next = Scheduler.next(alarms, Fmt.zoned(now))
     Column(
-        Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp),
+        Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -221,7 +233,7 @@ private fun WaitingHero(w: Waiting, s: AppSettings, now: Long) {
     val d = LocalDigits.current
     val delayMin = s.delayAfterClearMin
     Column(
-        Modifier.fillMaxWidth().padding(top = 18.dp),
+        Modifier.fillMaxWidth().padding(top = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {

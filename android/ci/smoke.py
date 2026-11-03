@@ -7,7 +7,8 @@
 и смотрит, что будильник сработал (или ждёт отбоя, если сейчас тревога).
 
 Режимы:
-  smoke.py check  <apk> <папка>          — полная проверка новой версии (до выпуска)
+  smoke.py check  <apk> <папка> [<apk со старым номером>] — полная проверка новой версии (до выпуска);
+      третий APK — та же сборка с номером 1: на ней проверяется окно «Вышла версия …» при входе
   smoke.py update <прошлая apk> <папка>  — проверка автообновления (после выпуска):
       ставится прошлая версия, в «Ещё» нажимается «Обновить», должна встать свежая из релиза.
 """
@@ -20,6 +21,7 @@ import xml.etree.ElementTree as ET
 
 PKG = "ua.otboi.app"
 MODE, APK, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
+OLD_APK = sys.argv[4] if len(sys.argv) > 4 else ""
 os.makedirs(OUT, exist_ok=True)
 LOG = open(os.path.join(OUT, "summary.txt"), "w", encoding="utf-8")
 problems = []
@@ -294,7 +296,110 @@ def test_alarm(button, wake_label, dismiss_label, prefix, main_tab, not_today):
         problems.append("тестовый будильник не сработал")
 
 
+def wait_for(text, seconds=20, exact=True):
+    for _ in range(max(1, seconds // 2)):
+        p = find(text, exact)
+        if p:
+            return p
+        time.sleep(2)
+    return None
+
+
+def prompt_test():
+    """Окно «Вышла версия …» при входе. Копия с номером сборки 1 видит в релизах версию новее."""
+    r = adb("install", "-r", OLD_APK, timeout=300)
+    if "Success" not in r.stdout:
+        problems.append("копия для проверки обновления не встала")
+        return
+    grant()
+    adb("logcat", "-b", "crash", "-c")
+    set_lang("ru-RU")
+    p = wait_for("Позже", 24)
+    shot("00a_ru_okno_obnovleniya")
+    if not p:
+        problems.append("при входе не появилось окно обновления")
+        log("на экране: " + " / ".join(texts()[:20]))
+        return
+    log("окно обновления: " + " / ".join(texts()[:12]))
+    shell(f"input tap {p[0]} {p[1]}")
+    time.sleep(2)
+    if find("Позже", exact=True):
+        problems.append("«Позже» не закрыло окно обновления")
+    # Снова зашли — после «Позже» окно не пристаёт, а обновление ждёт в «Ещё».
+    shell(f"am force-stop {PKG}")
+    shell(f"am start -W -n {PKG}/.ui.MainActivity")
+    time.sleep(10)
+    if find("Позже", exact=True):
+        problems.append("окно обновления вернулось сразу после «Позже»")
+    if open_tab("Ещё") and scroll_to("Вышла версия"):
+        shot("00b_ru_obnovlenie_v_eshche")
+    else:
+        problems.append("после «Позже» обновления нет в «Ещё»")
+    # «Обновить» в окне: скачивает и открывает системный установщик.
+    shell(f"pm clear {PKG}")
+    grant()
+    set_lang("ru-RU")
+    if wait_for("Позже", 24) and tap("Обновить", exact=True, wait=3):
+        ok = None
+        for _ in range(25):
+            ok = find("Update", exact=True) or find("Install", exact=True) or find("update this app")
+            if ok:
+                break
+            time.sleep(2)
+        shot("00c_ustanovshchik")
+        log("после «Обновить»: " + " / ".join(texts()[:12]))
+        if not ok:
+            problems.append("окно обновления: не открылся установщик")
+        tap("Cancel", exact=True, wait=2) or shell("input keyevent KEYCODE_BACK")
+    else:
+        problems.append("окно обновления не появилось второй раз")
+    check("окно обновления")
+    adb("uninstall", PKG)
+    log("копию для проверки обновления удалил")
+
+
+def widget_test():
+    """Кнопка «Добавить на главный экран» → окно launcher → виджет на главном экране."""
+    open_tab("Ещё")
+    p = scroll_to("Добавить на главный экран")
+    if not p:
+        shot("06a_vidzhet_net_knopki")
+        problems.append("нет кнопки «Добавить на главный экран»")
+        return
+    shell(f"input tap {p[0]} {p[1]}")
+    time.sleep(4)
+    shot("06a_vidzhet_zapros")
+    log("окно добавления виджета: " + " / ".join(texts()[:15]))
+    for label in ("Add to home screen", "ADD TO HOME SCREEN", "Add automatically", "ADD AUTOMATICALLY", "Add", "ADD"):
+        q = find(label, exact=True)
+        if q:
+            shell(f"input tap {q[0]} {q[1]}")
+            log(f"нажал «{label}»")
+            time.sleep(4)
+            break
+    else:
+        log("НЕ НАШЁЛ кнопку добавления виджета")
+    bound = "ua.otboi.app.widget.ClockWidget" in shell("dumpsys appwidget", timeout=60).stdout
+    log("виджет добавлен в систему: " + ("да" if bound else "нет"))
+    if not bound:
+        problems.append("виджет не добавился")
+    shell("input keyevent KEYCODE_HOME")
+    time.sleep(5)
+    shot("06b_vidzhet_na_glavnom")
+    log("на главном экране телефона: " + " / ".join(texts()[:30]))
+    shell(f"am start -W -n {PKG}/.ui.MainActivity")
+    time.sleep(4)
+    open_tab("Ещё")
+    if scroll_to("Виджет уже на главном экране"):
+        shot("06c_vidzhet_v_eshche")
+    elif bound:
+        problems.append("«Ещё» не видит добавленный виджет")
+    check("виджет")
+
+
 def check_mode():
+    if OLD_APK:
+        prompt_test()
     r = adb("install", "-r", APK, timeout=300)
     log("установка: " + (r.stdout + r.stderr).strip().splitlines()[-1])
     if "Success" not in r.stdout:
@@ -327,6 +432,8 @@ def check_mode():
     log("на главном экране: " + " / ".join(texts()[:30]))
     if not any("ПОГОДА" in t for t in texts()):
         problems.append("нет карточки погоды")
+    widget_test()
+    open_tab("Будильники")
 
     # 2. Редактор: звук.
     if tap("Пн–Пт", wait=3):
@@ -368,6 +475,12 @@ def check_mode():
         open_tab("Будильники")
         time.sleep(2)
         shot(f"08_tema_{name}")
+        if name == "light":
+            shell("input keyevent KEYCODE_HOME")
+            time.sleep(3)
+            shot("08b_vidzhet_svetlyi")
+            shell(f"am start -W -n {PKG}/.ui.MainActivity")
+            time.sleep(3)
     check("темы")
     open_tab("Ещё")
     if scroll_to("Удалить приложение"):
@@ -434,6 +547,14 @@ def update_mode():
     log(f"ОБНОВЛЕНИЕ: стоит прошлая версия {old}")
     grant()
     set_lang("ru-RU")
+    # С 1.4 приложение само предлагает обновиться при входе.
+    if wait_for("Позже", 20):
+        shot("u1_okno")
+        if not tap("Обновить", exact=True, wait=12):
+            problems.append("обновление: в окне нет кнопки «Обновить»")
+            return
+        installer_and_check(old)
+        return
     if not open_tab("Ещё"):
         problems.append("обновление: не открылась вкладка «Ещё»")
         return
@@ -452,6 +573,10 @@ def update_mode():
     if not tap("Обновить", exact=True, wait=12):
         problems.append("обновление: нет кнопки «Обновить»")
         return
+    installer_and_check(old)
+
+
+def installer_and_check(old):
     shot("u2_ustanovshchik")
     log("окно установщика: " + " / ".join(texts()[:12]))
     for label in ("Update", "Обновить", "Install", "Установить"):

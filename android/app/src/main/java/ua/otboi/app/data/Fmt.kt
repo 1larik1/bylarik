@@ -21,6 +21,13 @@ object Fmt {
         return two(z.hour) + ":" + two(z.minute)
     }
 
+    /** «Вторник», «Tuesday». */
+    fun weekday(z: ZonedDateTime): String =
+        z.dayOfWeek.getDisplayName(TextStyle.FULL, T.locale).replaceFirstChar { it.titlecase(T.locale) }
+
+    /** «3 ноября», «3 листопада», «November 3». */
+    fun dayMonth(z: ZonedDateTime): String = DateTimeFormatter.ofPattern(T.dayMonthPattern, T.locale).format(z)
+
     fun dateTime(ms: Long): String = DateTimeFormatter.ofPattern("dd.MM HH:mm", T.locale).format(zoned(ms))
 
     /** «13 год 17 хв», «45 мин», «2d 3h» — на языке телефона. */
